@@ -1,0 +1,4 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Notifications{% endblock %}{% block crumb %}Notifications{% endblock %}
+{% block content %}<div class="ph"><div><h1>Notifications</h1><div class="sub">Messages from your church and branch</div></div></div>
+<div class="card">{% for n in notes %}<div class="row"><span class="chip" data-i="notify"></span><div class="t"><b>{{ n.title }}{% if n.unread %} <span class="tag br">New</span>{% endif %}</b><span>{{ n.message }} · {{ n.send_at|timesince }} ago</span></div></div>{% empty %}<div class="empty"><b>No notifications yet</b></div>{% endfor %}</div>{% endblock %}

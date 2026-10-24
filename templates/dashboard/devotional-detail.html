@@ -1,0 +1,5 @@
+{% extends "dashboard/base.html" %}
+{% block title %}{{ devotional.title }}{% endblock %}{% block crumb %}Devotionals{% endblock %}
+{% block content %}<a class="back" href="{% url 'church:devotionals' %}"><span data-i="back"></span>Devotionals</a>
+<div class="dh"><div><h1>{{ devotional.title }}</h1><div class="tags"><span class="tag {% if devotional.state == 'published' %}ok{% else %}w{% endif %}">{{ devotional.state|capfirst }}</span><span class="tag">{{ devotional.date|date:"j M Y" }}</span></div></div><div class="acts"><a class="btn" href="{% url 'church:devotional_edit' devotional.pk %}"><span data-i="edit"></span> Edit</a></div></div>
+<div class="card"><h2>{{ devotional.scripture_ref }}</h2><p><em>{{ devotional.scripture_text }}</em></p><div class="prose"><p>{{ devotional.body|linebreaksbr }}</p></div></div>{% endblock %}

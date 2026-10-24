@@ -1,0 +1,11 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Apply to Become a Worker{% endblock %}{% block crumb %}Apply to Become a Worker{% endblock %}
+{% block content %}<a class="back" href="{% url 'church:home' %}"><span data-i="back"></span>Back to dashboard</a>
+<div class="ph"><div><h1>Apply to Become a Worker</h1><div class="sub">Tell us a little about yourself and where you would like to serve. A pastor from the branch you choose will review your application.</div></div></div>
+<div class="fgrid"><div><form class="card" method="post" novalidate>{% csrf_token %}
+{% if form.non_field_errors %}<div class="flash error">{{ form.non_field_errors }}</div>{% endif %}
+<fieldset class="grp"><legend>Where would you like to serve?</legend><div class="f wide"><div class="cols">{% for field in form %}{% if field.name == "branch" or field.name == "ministry" %}{% include "dashboard/_field.html" %}{% endif %}{% endfor %}</div></div></fieldset>
+<fieldset class="grp"><legend>Your story</legend><div class="f wide">{% for field in form %}{% if field.name == "experience" or field.name == "availability" %}{% include "dashboard/_field.html" %}{% endif %}{% endfor %}</div></fieldset>
+<div class="acts" style="display:flex;gap:8px;justify-content:flex-end"><a class="btn" href="{% url 'church:home' %}">Cancel</a><button class="btn p" type="submit">Submit application</button></div></form></div>
+<aside class="side-c"><div class="card"><h2>Application status</h2><p class="s">Track your applications here.</p>
+{% for a in applications %}<div class="row"><div class="t"><b>{{ a.branch.name }}{% if a.ministry %} · {{ a.ministry.name }}{% endif %}</b><span>{{ a.submitted_at|date:"j M Y" }}{% if a.reviewed_by %} · reviewed by {{ a.reviewed_by.display_name }}{% endif %}</span>{% if a.review_note %}<span>“{{ a.review_note }}”</span>{% endif %}</div><span class="tag {% if a.status == 'approved' %}ok{% elif a.status == 'pending' %}w{% else %}mute{% endif %}">{{ a.get_status_display }}</span></div>{% empty %}<p class="s">You haven’t applied yet.</p>{% endfor %}</div></aside></div>{% endblock %}

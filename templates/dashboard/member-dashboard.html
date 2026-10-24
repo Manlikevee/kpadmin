@@ -1,0 +1,8 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Home{% endblock %}{% block crumb %}Home{% endblock %}
+{% block content %}<div class="welcome" id="top"><div><h1>Welcome, {{ user.first_name|default:user.display_name }}</h1><p>Updates, sermons and events from your church family{% if member and member.branch %} at <b>{{ member.branch.name }}</b>{% endif %}.</p></div>
+{% if not user.is_worker %}<div class="acts"><a class="btn p" href="{% url 'church:apply' %}"><span data-i="worker"></span>Apply to Become a Worker</a></div>{% endif %}</div>
+{% if applications %}<div class="card" style="margin-bottom:14px"><h2>My worker applications</h2>{% for a in applications %}<div class="row"><span class="chip" data-i="clip"></span><div class="t"><b>{{ a.branch.name }}{% if a.ministry %} · {{ a.ministry.name }}{% endif %}</b><span>Submitted {{ a.submitted_at|date:"j M Y" }}</span></div><span class="tag {% if a.status == 'approved' %}ok{% elif a.status == 'pending' %}w{% endif %}">{{ a.get_status_display }}</span></div>{% endfor %}</div>{% endif %}
+{% include "dashboard/_portal_sections.html" %}
+<div class="card" id="branches" style="margin-top:14px"><h2>Branches</h2>{% for b in branches %}<div class="row"><span class="chip" data-i="branch"></span><div class="t"><b>{{ b.name }}</b><span>{{ b.address }}{% if b.city %}, {{ b.city }}{% endif %}</span></div></div>{% endfor %}</div>
+<div class="card" id="profile" style="margin-top:14px"><div class="bar"><h2>My profile</h2><a class="btn s" href="{% url 'accounts:profile' %}">Edit profile</a></div><dl class="kv"><dt>Name</dt><dd>{{ user.display_name }}</dd><dt>Email</dt><dd>{{ user.email }}</dd><dt>Phone</dt><dd>{{ user.profile.phone|default:"—" }}</dd></dl></div>{% endblock %}

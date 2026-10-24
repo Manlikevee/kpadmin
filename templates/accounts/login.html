@@ -1,0 +1,9 @@
+{% extends "accounts/_auth_base.html" %}
+{% block box %}<h1>Welcome back</h1><div class="sub">Sign in to your KP Global account.</div>
+<form class="f" method="post">{% csrf_token %}<input type="hidden" name="next" value="{{ next }}">
+{% if form.errors %}<div class="flash error">Your email or password was not correct. Please try again.</div>{% endif %}
+<label>Email<input type="text" name="username" required placeholder="you@example.org" autocomplete="username" autofocus></label>
+<label>Password<span class="pw"><input type="password" name="password" id="id_password" required placeholder="Enter your password" autocomplete="current-password"><button type="button" id="sh">Show</button></span></label>
+<div class="row2"><span></span><a href="{% url 'accounts:password_reset' %}">Forgot password?</a></div>
+<button class="btn p big" type="submit">Sign in</button></form>
+<p style="margin-top:16px;text-align:center">New here? <a href="{% url 'accounts:register' %}">Create an account</a></p>{% endblock %}

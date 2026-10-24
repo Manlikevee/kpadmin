@@ -1,0 +1,293 @@
+from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
+from accounts.access import branches_for
+from accounts.models import Profile
+from accounts.services import create_member_account
+from bible.models import BibleTranslation
+from church import services
+from church.models import (Announcement, Branch, Devotional, Event, Member, Ministry, Notification,
+                           WorkerApplication, WorkerAssignment)
+
+User = get_user_model()
+
+
+class ManagedBranchField(serializers.PrimaryKeyRelatedField):
+    """Only branches the requesting user manages can be written."""
+
+    def get_queryset(self):
+        request = self.context.get("request")
+        return branches_for(request.user) if request and request.user.is_authenticated else Branch.objects.none()
+
+
+# ------------------------------------------------------------------- auth
+class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """Sign in with ``email`` + ``password`` (``username`` also accepted)."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["email"] = serializers.CharField(write_only=True, required=False)
+        self.fields["username"].required = False
+
+    def validate(self, attrs):
+        identifier = attrs.get("email") or attrs.get("username")
+        if not identifier:
+            raise serializers.ValidationError({"email": "This field is required."})
+        attrs["username"] = identifier
+        data = super().validate(attrs)
+        data["user"] = UserSerializer(self.user, context=self.context).data
+        return data
+
+
+class RegisterSerializer(serializers.Serializer):
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True, style={"input_type": "password"})
+    phone = serializers.CharField(max_length=24, required=False, allow_blank=True)
+    branch = serializers.PrimaryKeyRelatedField(queryset=Branch.objects.filter(is_active=True), required=False,
+                                                allow_null=True)
+
+    def validate_email(self, value):
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("An account with this email already exists.")
+        return value.lower()
+
+    def validate(self, attrs):
+        probe = User(email=attrs["email"], first_name=attrs["first_name"], last_name=attrs["last_name"])
+        try:
+            validate_password(attrs["password"], probe)
+        except Exception as exc:
+            raise serializers.ValidationError({"password": list(getattr(exc, "messages", [str(exc)]))})
+        return attrs
+
+    def create(self, validated):
+        return create_member_account(**validated)
+
+
+class ProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Profile
+        fields = ("phone", "image", "bio")
+
+
+class UserSerializer(serializers.ModelSerializer):
+    profile = ProfileSerializer(read_only=True)
+    role_display = serializers.CharField(source="get_role_display", read_only=True)
+
+    class Meta:
+        model = User
+        fields = ("id", "email", "first_name", "last_name", "role", "role_display", "profile")
+        read_only_fields = ("id", "role", "role_display")
+
+
+class MeSerializer(serializers.ModelSerializer):
+    """Profile editing: names, email and profile fields. Role is never writable."""
+
+    phone = serializers.CharField(source="profile.phone", required=False, allow_blank=True, max_length=24)
+    bio = serializers.CharField(source="profile.bio", required=False, allow_blank=True, max_length=300)
+    image = serializers.ImageField(source="profile.image", required=False, allow_null=True)
+    role_display = serializers.CharField(source="get_role_display", read_only=True)
+    managed_branches = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ("id", "email", "first_name", "last_name", "role", "role_display", "phone", "bio", "image",
+                  "managed_branches")
+        read_only_fields = ("id", "role")
+
+    def get_managed_branches(self, obj):
+        return list(branches_for(obj).values_list("pk", flat=True))
+
+    def validate_email(self, value):
+        value = value.lower()
+        if User.objects.filter(email__iexact=value).exclude(pk=self.instance.pk).exists():
+            raise serializers.ValidationError("Another account already uses this email.")
+        return value
+
+    def update(self, instance, validated):
+        profile_data = validated.pop("profile", {})
+        for k, v in validated.items():
+            setattr(instance, k, v)
+        if "email" in validated:
+            instance.username = instance.email
+        instance.save()
+        profile = instance.profile
+        for k, v in profile_data.items():
+            setattr(profile, k, v)
+        profile.save()
+        return instance
+
+
+class PasswordChangeSerializer(serializers.Serializer):
+    old_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True)
+
+    def validate_old_password(self, value):
+        if not self.context["request"].user.check_password(value):
+            raise serializers.ValidationError("Current password is incorrect.")
+        return value
+
+    def validate_new_password(self, value):
+        validate_password(value, self.context["request"].user)
+        return value
+
+
+# --------------------------------------------------------------- church data
+class BranchSerializer(serializers.ModelSerializer):
+    service_time_lines = serializers.ListField(read_only=True)
+    admins = serializers.PrimaryKeyRelatedField(many=True, queryset=User.objects.all(), required=False)
+
+    class Meta:
+        model = Branch
+        fields = ("id", "name", "slug", "address", "city", "country", "latitude", "longitude", "phone", "email",
+                  "description", "service_times", "service_time_lines", "is_active", "admins", "created_at", "updated_at")
+        read_only_fields = ("slug", "created_at", "updated_at")
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        if not (request and request.user.is_authenticated and request.user.is_staff_role):
+            data.pop("admins", None)  # don't expose staff ids to the public
+        return data
+
+
+class MinistrySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ministry
+        fields = ("id", "name", "description", "branch", "is_active")
+
+
+class MemberSerializer(serializers.ModelSerializer):
+    branch = ManagedBranchField(queryset=Branch.objects.all(), required=False, allow_null=True)
+    branch_name = serializers.CharField(source="branch.name", read_only=True, default=None)
+
+    class Meta:
+        model = Member
+        fields = ("id", "user", "full_name", "email", "phone", "branch", "branch_name", "status", "joined_on",
+                  "notes", "created_at")
+        read_only_fields = ("user", "created_at")
+
+    def validate_branch(self, value):
+        if value is None and not self.context["request"].user.is_super_admin:
+            raise serializers.ValidationError("A branch is required.")
+        return value
+
+
+class WorkerAssignmentSerializer(serializers.ModelSerializer):
+    user_name = serializers.CharField(source="user.display_name", read_only=True)
+    branch_name = serializers.CharField(source="branch.name", read_only=True)
+    ministry_name = serializers.CharField(source="ministry.name", read_only=True, default=None)
+
+    class Meta:
+        model = WorkerAssignment
+        fields = ("id", "user", "user_name", "branch", "branch_name", "ministry", "ministry_name", "title",
+                  "is_active", "started_on")
+
+
+class WorkerApplicationSerializer(serializers.ModelSerializer):
+    applicant_name = serializers.CharField(source="applicant.display_name", read_only=True)
+    branch_name = serializers.CharField(source="branch.name", read_only=True)
+    ministry_name = serializers.CharField(source="ministry.name", read_only=True, default=None)
+    reviewed_by_name = serializers.CharField(source="reviewed_by.display_name", read_only=True, default=None)
+    branch = serializers.PrimaryKeyRelatedField(queryset=Branch.objects.filter(is_active=True))
+    ministry = serializers.PrimaryKeyRelatedField(queryset=Ministry.objects.filter(is_active=True),
+                                                  required=False, allow_null=True)
+
+    class Meta:
+        model = WorkerApplication
+        fields = ("id", "applicant", "applicant_name", "branch", "branch_name", "ministry", "ministry_name",
+                  "experience", "availability", "status", "submitted_at", "reviewed_by", "reviewed_by_name",
+                  "reviewed_at", "review_note")
+        read_only_fields = ("applicant", "status", "submitted_at", "reviewed_by", "reviewed_at", "review_note")
+
+    def validate_experience(self, value):
+        if len(value.strip()) < 20:
+            raise serializers.ValidationError("Please write at least 20 characters.")
+        return value
+
+    def create(self, validated):
+        try:
+            return services.submit_worker_application(
+                self.context["request"].user, validated["branch"], validated.get("ministry"),
+                validated["experience"], validated.get("availability", ""))
+        except services.ApplicationError as exc:
+            raise serializers.ValidationError({"detail": str(exc)})
+
+
+class ReviewSerializer(serializers.Serializer):
+    note = serializers.CharField(required=False, allow_blank=True, max_length=500)
+
+
+class EventSerializer(serializers.ModelSerializer):
+    branch = ManagedBranchField(queryset=Branch.objects.all(), required=False, allow_null=True)
+    branch_name = serializers.CharField(source="branch.name", read_only=True, default=None)
+
+    class Meta:
+        model = Event
+        fields = ("id", "title", "description", "branch", "branch_name", "kind", "location", "start_at", "end_at",
+                  "repeat", "capacity", "status")
+
+    def validate_branch(self, value):
+        if value is None and not self.context["request"].user.is_super_admin:
+            raise serializers.ValidationError("A branch is required.")
+        return value
+
+    def validate(self, attrs):
+        start = attrs.get("start_at", getattr(self.instance, "start_at", None))
+        end = attrs.get("end_at", getattr(self.instance, "end_at", None))
+        if start and end and end < start:
+            raise serializers.ValidationError({"end_at": "End must be after the start."})
+        return attrs
+
+
+class AnnouncementSerializer(serializers.ModelSerializer):
+    branch = ManagedBranchField(queryset=Branch.objects.all(), required=False, allow_null=True)
+    branch_name = serializers.CharField(source="branch.name", read_only=True, default=None)
+
+    class Meta:
+        model = Announcement
+        fields = ("id", "title", "body", "branch", "branch_name", "is_published", "publish_at", "is_pinned",
+                  "created_at")
+        read_only_fields = ("created_at",)
+
+    def validate_branch(self, value):
+        if value is None and not self.context["request"].user.is_super_admin:
+            raise serializers.ValidationError("A branch is required.")
+        return value
+
+
+class DevotionalSerializer(serializers.ModelSerializer):
+    read_minutes = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Devotional
+        fields = ("id", "title", "scripture_ref", "scripture_text", "body", "date", "read_minutes")
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    is_read = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Notification
+        fields = ("id", "title", "message", "audience", "branch", "send_at", "is_read")
+
+    def get_is_read(self, obj):
+        return obj.pk in self.context.get("read_ids", set())
+
+
+class BibleVersionSerializer(serializers.ModelSerializer):
+    """Matches the legacy record shape: name, size, size_in_bytes, url."""
+
+    size = serializers.CharField(read_only=True)
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BibleTranslation
+        fields = ("name", "size", "size_in_bytes", "url")
+
+    def get_url(self, obj):
+        request = self.context.get("request")
+        return request.build_absolute_uri(obj.url) if request and obj.url else obj.url

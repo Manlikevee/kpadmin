@@ -1,0 +1,6 @@
+{% extends "dashboard/base.html" %}
+{% block title %}{{ video.title }}{% endblock %}{% block crumb %}Sermons & Media{% endblock %}
+{% block content %}<a class="back" href="{% url 'sermons_admin:list' %}"><span data-i="back"></span>Sermons & Media</a>
+<div class="dh"><div><h1>{{ video.title }}</h1><div class="tags"><span class="tag">{{ video.published_at|slice:":10" }}</span>{% if video.is_live %}<span class="tag br">LIVE</span>{% endif %}{% if note.is_hidden %}<span class="tag w">Hidden</span>{% endif %}</div></div><div class="acts"><a class="btn" href="{% url 'sermons_admin:edit' video.video_id %}"><span data-i="edit"></span> Edit details</a><a class="btn" href="{{ video.watch_url }}" target="_blank" rel="noopener">Open on YouTube</a></div></div>
+<div class="card"><div style="aspect-ratio:16/9"><iframe src="{{ video.embed_url }}" title="{{ video.title }}" style="width:100%;height:100%;border:0;border-radius:12px" allowfullscreen loading="lazy"></iframe></div>
+<dl class="kv" style="margin-top:12px"><dt>Speaker</dt><dd>{{ note.speaker|default:"—" }}</dd><dt>Series</dt><dd>{{ note.series|default:"—" }}</dd><dt>Video ID</dt><dd>{{ video.video_id }}</dd><dt>Views</dt><dd>{{ video.view_count }}</dd></dl><div class="prose"><p>{{ video.description|truncatewords:60|linebreaksbr }}</p></div></div>{% endblock %}

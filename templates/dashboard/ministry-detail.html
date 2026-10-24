@@ -1,0 +1,5 @@
+{% extends "dashboard/base.html" %}
+{% block title %}{{ ministry.name }}{% endblock %}{% block crumb %}Ministries{% endblock %}
+{% block content %}<a class="back" href="{% url 'church:ministries' %}"><span data-i="back"></span>Departments & Ministries</a>
+<div class="dh"><div><h1>{{ ministry.name }}</h1><div class="tags"><span class="tag {% if ministry.is_active %}ok{% else %}w{% endif %}">{% if ministry.is_active %}Active{% else %}Inactive{% endif %}</span><span class="tag">{{ ministry.branch.name|default:"Church-wide" }}</span></div></div><div class="acts"><a class="btn" href="{% url 'church:ministry_edit' ministry.pk %}"><span data-i="edit"></span> Edit</a></div></div>
+<div class="card"><h2>About</h2><dl class="kv"><dt>Leader</dt><dd>{{ ministry.leader.display_name|default:"—" }}</dd><dt>Workers</dt><dd>{{ ministry.worker_total }}</dd></dl><div class="prose"><p>{{ ministry.description|default:"No description yet." }}</p></div></div>{% endblock %}

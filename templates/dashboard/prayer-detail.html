@@ -1,0 +1,9 @@
+{% extends "dashboard/base.html" %}
+{% block title %}{{ prayer.title }}{% endblock %}{% block crumb %}Prayer Requests{% endblock %}
+{% block content %}<a class="back" href="{% url 'church:prayer_requests' %}"><span data-i="back"></span>Prayer Requests</a>
+<div class="dh"><div><h1>{{ prayer.title }}</h1><div class="tags"><span class="tag w">{{ prayer.get_status_display }}</span><span class="tag">{% if prayer.is_public %}Public{% else %}Private{% endif %}</span></div></div></div>
+<div class="two"><div class="card"><h2>Request</h2><div class="prose"><p>{{ prayer.request|linebreaksbr }}</p></div><p class="s">From {{ prayer.author_name }}{% if prayer.email %} · {{ prayer.email }}{% endif %} · {{ prayer.created_at|date:"j M Y" }}</p></div>
+<div class="card"><h2>Manage</h2><form class="f wide" method="post" action="{% url 'church:prayer_update' prayer.pk %}">{% csrf_token %}
+<label>Assign to<select name="assigned_to"><option value="">Unassigned</option>{% for u in team %}<option value="{{ u.pk }}"{% if prayer.assigned_to_id == u.pk %} selected{% endif %}>{{ u.display_name }}</option>{% endfor %}</select></label>
+<label>Status<select name="status">{% for v, l in prayer.Status.choices %}<option value="{{ v }}"{% if prayer.status == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+<button class="btn p" type="submit">Save</button></form>{% if prayer.status == 'answered' %}<p style="margin-top:12px"><a class="btn s" href="{% url 'church:praise_create' %}">Share as praise</a></p>{% endif %}</div></div>{% endblock %}

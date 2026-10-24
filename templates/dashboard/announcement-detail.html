@@ -1,0 +1,5 @@
+{% extends "dashboard/base.html" %}
+{% block title %}{{ announcement.title }}{% endblock %}{% block crumb %}Announcements{% endblock %}
+{% block content %}<a class="back" href="{% url 'church:announcements' %}"><span data-i="back"></span>Announcements</a>
+<div class="dh"><div><h1>{{ announcement.title }}</h1><div class="tags"><span class="tag {% if announcement.state == 'published' %}ok{% else %}w{% endif %}">{{ announcement.state|capfirst }}</span><span class="tag">{{ announcement.branch.name|default:"Everyone" }}</span></div></div>{% if can_edit %}<div class="acts"><a class="btn" href="{% url 'church:announcement_edit' announcement.pk %}"><span data-i="edit"></span> Edit</a></div>{% endif %}</div>
+<div class="card"><div class="prose"><p>{{ announcement.body|linebreaksbr }}</p></div><p class="s">Posted {{ announcement.created_at|date:"j M Y" }}{% if announcement.author %} by {{ announcement.author.display_name }}{% endif %}</p></div>{% endblock %}

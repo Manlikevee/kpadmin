@@ -1,0 +1,10 @@
+<form class="fgrid" method="post" enctype="multipart/form-data" novalidate>{% csrf_token %}
+<div class="card"><div class="f wide">{% if form.non_field_errors %}<div class="flash error">{{ form.non_field_errors }}</div>{% endif %}
+{% for field in form.main_fields %}{% include "dashboard/_field.html" %}{% endfor %}</div></div>
+<div class="side-c"><div class="card"><div class="f wide">
+{% for field in form.side_bound_fields %}{% include "dashboard/_field.html" %}{% endfor %}
+<button class="btn p big" type="submit">{% if object %}Save changes{% else %}Create{% endif %}</button>
+<a class="btn big" href="{% url list_url %}" style="justify-content:center">Cancel</a>
+{% if object and delete_url %}<button class="btn d big" type="submit" form="delform" style="justify-content:center"><span data-i="trash"></span> Delete</button>{% endif %}
+</div></div></div></form>
+{% if object and delete_url %}<form id="delform" method="post" action="{{ delete_url }}" data-confirm-submit="Delete this item?" data-msg="This can’t be undone.">{% csrf_token %}</form>{% endif %}

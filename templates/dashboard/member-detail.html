@@ -1,0 +1,5 @@
+{% extends "dashboard/base.html" %}
+{% block title %}{{ member.full_name }}{% endblock %}{% block crumb %}Members{% endblock %}
+{% block content %}<a class="back" href="{% url 'church:members' %}"><span data-i="back"></span>Members</a>
+<div class="dh"><div class="av lg c0">{{ member.initials }}</div><div><h1>{{ member.full_name }}</h1><div class="tags"><span class="tag {% if member.status == 'active' %}ok{% else %}w{% endif %}">{{ member.get_status_display }}</span><span class="tag">{{ member.role_label }}</span></div></div>{% if can_edit %}<div class="acts"><a class="btn" href="{% url 'church:member_edit' member.pk %}"><span data-i="edit"></span> Edit</a></div>{% endif %}</div>
+<div class="card"><h2>Details</h2><dl class="kv"><dt>Email</dt><dd>{{ member.email|default:"—" }}</dd><dt>Phone</dt><dd>{{ member.phone|default:"—" }}</dd><dt>Branch</dt><dd>{{ member.branch.name|default:"—" }}</dd><dt>Joined</dt><dd>{{ member.joined_on|date:"j F Y" }}</dd></dl>{% if member.notes %}<div class="prose"><p>{{ member.notes }}</p></div>{% endif %}</div>{% endblock %}

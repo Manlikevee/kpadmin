@@ -1,0 +1,4 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Settings{% endblock %}{% block crumb %}Settings{% endblock %}
+{% block content %}<div class="ph"><div><h1>Settings</h1><div class="sub">Global church information used across the website</div></div></div>
+<form class="card" method="post" style="max-width:720px">{% csrf_token %}<div class="f wide">{{ form.non_field_errors }}{% for field in form %}{% include "dashboard/_field.html" %}{% endfor %}<button class="btn p" type="submit" style="justify-self:start">Save settings</button></div></form>{% endblock %}

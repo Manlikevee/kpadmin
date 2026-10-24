@@ -1,0 +1,6 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Praise report{% endblock %}{% block crumb %}Praise Reports{% endblock %}
+{% block content %}<a class="back" href="{% url 'church:praise_reports' %}"><span data-i="back"></span>Praise Reports</a>
+<div class="dh"><div><h1>{{ report.category|default:"Praise report" }}</h1><div class="tags"><span class="tag {% if report.status == 'published' %}ok{% else %}w{% endif %}">{{ report.get_status_display }}</span><span class="tag">{{ report.author_name }}</span></div></div><div class="acts"><a class="btn" href="{% url 'church:praise_edit' report.pk %}"><span data-i="edit"></span> Edit</a>
+{% if report.status != 'published' %}<form class="inline-form" method="post" action="{% url 'church:praise_approve' report.pk %}">{% csrf_token %}<button class="btn p" type="submit">Approve</button></form>{% endif %}{% if report.status != 'declined' %}<form class="inline-form" method="post" action="{% url 'church:praise_decline' report.pk %}">{% csrf_token %}<button class="btn" type="submit">Decline</button></form>{% endif %}</div></div>
+<div class="card"><div class="prose"><p>{{ report.story|linebreaksbr }}</p></div><p class="s">Submitted {{ report.created_at|date:"j M Y" }}{% if report.branch %} · {{ report.branch.name }}{% endif %}</p></div>{% endblock %}

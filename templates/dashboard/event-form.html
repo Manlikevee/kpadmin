@@ -1,0 +1,6 @@
+{% extends "dashboard/base.html" %}{% load static %}
+{% block title %}Create event{% endblock %}
+{% block crumb %}Create event{% endblock %}
+{% block content %}<a class="back" href="{% url 'church:events' %}"><span data-i="back"></span>Events & Services</a>
+<div class="ph"><div><h1>{% if object %}Edit event{% else %}Create event{% endif %}</h1><div class="sub">{% if object %}Update the details below, then save your changes.{% else %}Fill in the details below. You can edit this later.{% endif %}</div></div></div>
+{% include "dashboard/_form_body.html" %}{% endblock %}

@@ -1,0 +1,7 @@
+{% extends "website/base.html" %}{% load static %}
+{% block title %}Ministries · KP Global{% endblock %}
+{% block description %}Ministries and teams you can join at KP Global.{% endblock %}
+{% block content %}<section class="phero dk"><div class="wrap"><div class="crumbs"><a href="{% url 'core:home' %}">Home</a><span>/</span><span>Ministries</span></div><h1>Ministries</h1><p class="lead">There is a place for you to belong and to serve. Find a team and get involved.</p></div></section>
+<section class="sec"><div class="wrap"><div class="tiles">{% for m in ministries %}<div class="tile"><span class="chip"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg></span><h3>{{ m.name }}</h3><p>{{ m.description|default:"Get involved and serve with us." }}</p>{% if m.branch %}<span class="meta">{{ m.branch.name }}</span>{% endif %}</div>{% empty %}<p class="lead">Ministries will be listed here soon.</p>{% endfor %}</div></div></section>
+<section class="sec alt"><div class="wrap two"><div><h2>Ready to get involved?</h2><p class="lead" style="margin:14px 0 24px">Tell us which team interests you and the leader will be in touch within a few days. No experience needed.</p></div>
+<div class="panel"><h3>Apply to serve</h3><p class="muted">Sign in (or create a free account), choose a branch and ministry, and a pastor will review your application.</p><a class="btn btn-p btn-w" href="{% url 'church:apply' %}">Apply to Become a Worker</a></div></div></section>{% endblock %}

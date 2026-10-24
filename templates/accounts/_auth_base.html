@@ -1,0 +1,19 @@
+{% load static %}<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Sign in{% endblock %} · KP Global</title>
+<link rel="icon" href="{% static 'dashboard/favicon.png' %}">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'dashboard/style.css' %}">
+<script>try{var t=localStorage.getItem("kp-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head><body><div class="login">
+<section class="hero"><div class="brand"><img class="logo" src="{% static 'dashboard/logo.png' %}" alt=""><span>KP Global</span></div>
+<div><h2>Serve your church from one place.</h2><p>Sermons, events, devotionals and your church family, all in one portal.</p></div>
+<ul><li>Follow sermons, events and devotionals</li><li>Apply to serve as a church worker</li><li>Get updates from your branch</li></ul></section>
+<section class="pane"><button class="ib" id="theme" type="button"></button><div class="box">
+{% for m in messages %}<div class="flash {{ m.tags }}" role="status">{{ m }}</div>{% endfor %}
+{% block box %}{% endblock %}
+<p style="margin-top:22px;text-align:center"><a href="{% url 'core:home' %}">Back to the website</a></p></div></section></div>
+<script src="{% static 'dashboard/app.js' %}"></script>
+<script>var s=document.getElementById("sh");if(s)s.onclick=function(){var p=document.getElementById("id_password");if(!p)return;var h=p.type==="password";p.type=h?"text":"password";this.textContent=h?"Hide":"Show"};</script>
+</body></html>
