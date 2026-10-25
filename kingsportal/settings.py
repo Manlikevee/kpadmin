@@ -174,8 +174,33 @@ STORAGES = {
 DATA_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 
 # --- Email ------------------------------------------------------------------
-EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
-DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "KP Global <no-reply@example.org>")
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend",
+)
+
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "465"))
+
+EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "True").lower() == "true"
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "False").lower() == "true"
+
+EMAIL_HOST_USER = os.environ.get(
+    "EMAIL_HOST_USER",
+    os.environ.get("EMAIL_USER", ""),
+)
+
+EMAIL_HOST_PASSWORD = os.environ.get(
+    "EMAIL_HOST_PASSWORD",
+    os.environ.get("EMAIL_PASSWORD", ""),
+)
+
+DEFAULT_FROM_EMAIL = os.environ.get(
+    "DEFAULT_FROM_EMAIL",
+    "KP Global <kp@learnwithalison.com>",
+)
+
+EMAIL_TIMEOUT = 20
 
 # --- Django REST Framework / JWT / CORS ------------------------------------
 REST_FRAMEWORK = {
