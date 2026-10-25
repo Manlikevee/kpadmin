@@ -7,6 +7,8 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.text import slugify
 
+from church.storage import StoryMediaCloudinaryStorage
+
 User = settings.AUTH_USER_MODEL
 
 
@@ -379,7 +381,11 @@ class GivingRecord(TimeStamped):
 class Story(TimeStamped):
     title = models.CharField(max_length=120)
     caption = models.CharField(max_length=240, blank=True)
-    media = models.FileField(upload_to="stories/", blank=True)
+    media = models.FileField(
+        upload_to="stories/",
+        storage=StoryMediaCloudinaryStorage(),
+        blank=True,
+    )
     is_video = models.BooleanField(default=False)
     branch = models.ForeignKey(Branch, null=True, blank=True, on_delete=models.CASCADE, related_name="stories")
     is_published = models.BooleanField(default=False)
