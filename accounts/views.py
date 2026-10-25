@@ -45,10 +45,12 @@ class ProfileView(LoginRequiredMixin, View):
         return render(request, self.template_name, {"user_form": user_form, "profile_form": profile_form})
 
     def post(self, request):
+        old_email = request.user.email
         user_form, profile_form = self._forms(request, request.POST, request.FILES)
         if user_form.is_valid() and profile_form.is_valid():
             user = user_form.save(commit=False)
-            user.username = user.email
+            if user.username.lower() == old_email.lower():  # username followed the email; keep it that way
+                user.username = user.email
             user.save()
             profile_form.save()
             messages.success(request, "Profile updated.")

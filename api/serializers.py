@@ -1,17 +1,41 @@
+import re
+
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from accounts.access import branches_for
+from accounts import codes
 from accounts.models import Profile
 from accounts.services import create_member_account
 from bible.models import BibleTranslation
 from church import services
 from church.models import (Announcement, Branch, Devotional, Event, Member, Ministry, Notification,
-                           WorkerApplication, WorkerAssignment)
+                           PrayerRequest, WorkerApplication, WorkerAssignment)
 
 User = get_user_model()
+
+USERNAME_RE = re.compile(r"^[A-Za-z0-9._]{3,24}$")
+
+
+def clean_username(value, exclude_pk=None):
+    value = (value or "").strip()
+    if not value:
+        return ""
+    if not USERNAME_RE.match(value):
+        raise serializers.ValidationError("Use 3-24 letters, numbers, dots or underscores.")
+    qs = User.objects.filter(username__iexact=value)
+    if exclude_pk:
+        qs = qs.exclude(pk=exclude_pk)
+    if qs.exists() or User.objects.filter(email__iexact=value).exclude(pk=exclude_pk or 0).exists():
+        raise serializers.ValidationError("That username is already taken.")
+    return value
+
+
+def member_id(user):
+    return f"KP-{user.pk:06d}"
 
 
 class ManagedBranchField(serializers.PrimaryKeyRelatedField):
@@ -49,6 +73,12 @@ class RegisterSerializer(serializers.Serializer):
     phone = serializers.CharField(max_length=24, required=False, allow_blank=True)
     branch = serializers.PrimaryKeyRelatedField(queryset=Branch.objects.filter(is_active=True), required=False,
                                                 allow_null=True)
+    username = serializers.CharField(required=False, allow_blank=True)
+    location = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    email_token = serializers.CharField(write_only=True, required=False, allow_blank=True)
+
+    def validate_username(self, value):
+        return clean_username(value)
 
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
@@ -56,6 +86,11 @@ class RegisterSerializer(serializers.Serializer):
         return value.lower()
 
     def validate(self, attrs):
+        token = attrs.pop("email_token", "")
+        if settings.REQUIRE_EMAIL_VERIFICATION:
+            data = codes.read_token("signup", token) if token else None
+            if not data or data["e"] != attrs["email"]:
+                raise serializers.ValidationError({"email_token": "Please verify your email address first."})
         probe = User(email=attrs["email"], first_name=attrs["first_name"], last_name=attrs["last_name"])
         try:
             validate_password(attrs["password"], probe)
@@ -70,7 +105,7 @@ class RegisterSerializer(serializers.Serializer):
 class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
-        fields = ("phone", "image", "bio")
+        fields = ("phone", "image", "bio", "location")
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -79,8 +114,8 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ("id", "email", "first_name", "last_name", "role", "role_display", "profile")
-        read_only_fields = ("id", "role", "role_display")
+        fields = ("id", "username", "email", "first_name", "last_name", "role", "role_display", "profile")
+        read_only_fields = ("id", "username", "role", "role_display")
 
 
 class MeSerializer(serializers.ModelSerializer):
@@ -89,14 +124,23 @@ class MeSerializer(serializers.ModelSerializer):
     phone = serializers.CharField(source="profile.phone", required=False, allow_blank=True, max_length=24)
     bio = serializers.CharField(source="profile.bio", required=False, allow_blank=True, max_length=300)
     image = serializers.ImageField(source="profile.image", required=False, allow_null=True)
+    location = serializers.CharField(source="profile.location", required=False, allow_blank=True, max_length=100)
+    username = serializers.CharField(required=False, allow_blank=True)
+    member_id = serializers.SerializerMethodField()
     role_display = serializers.CharField(source="get_role_display", read_only=True)
     managed_branches = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ("id", "email", "first_name", "last_name", "role", "role_display", "phone", "bio", "image",
-                  "managed_branches")
-        read_only_fields = ("id", "role")
+        fields = ("id", "member_id", "username", "email", "first_name", "last_name", "role", "role_display",
+                  "phone", "bio", "image", "location", "date_joined", "managed_branches")
+        read_only_fields = ("id", "role", "date_joined")
+
+    def get_member_id(self, obj):
+        return member_id(obj)
+
+    def validate_username(self, value):
+        return clean_username(value, exclude_pk=self.instance.pk) or self.instance.username
 
     def get_managed_branches(self, obj):
         return list(branches_for(obj).values_list("pk", flat=True))
@@ -109,10 +153,11 @@ class MeSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated):
         profile_data = validated.pop("profile", {})
+        old_email = instance.email
         for k, v in validated.items():
             setattr(instance, k, v)
-        if "email" in validated:
-            instance.username = instance.email
+        if "email" in validated and "username" not in validated and instance.username.lower() == old_email.lower():
+            instance.username = instance.email  # username followed the email; keep it that way
         instance.save()
         profile = instance.profile
         for k, v in profile_data.items():
@@ -291,3 +336,30 @@ class BibleVersionSerializer(serializers.ModelSerializer):
     def get_url(self, obj):
         request = self.context.get("request")
         return request.build_absolute_uri(obj.url) if request and obj.url else obj.url
+
+
+class EmailSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class CodeVerifySerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    code = serializers.RegexField(r"^\d{6}$", error_messages={"invalid": "Enter the 6-digit code."})
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    reset_token = serializers.CharField()
+    new_password = serializers.CharField(write_only=True)
+
+
+class PrayerRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PrayerRequest
+        fields = ("id", "name", "request", "is_public", "status", "created_at")
+        read_only_fields = ("id", "status", "created_at")
+        extra_kwargs = {"request": {"max_length": 2000}, "name": {"required": False}}
+
+    def validate_request(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Please write your prayer request.")
+        return value.strip()

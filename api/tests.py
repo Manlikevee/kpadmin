@@ -210,3 +210,103 @@ class ContentApiTests(ApiBase):
             self.assertEqual(self.client.get("/api/v1/sermons/vid00001/").data["video_id"], "vid00001")
             live = self.client.get("/api/v1/live/").data
             self.assertTrue(live["is_live"])
+
+
+class MobileAuthExtrasTests(ApiBase):
+    def test_register_with_username_and_location(self):
+        r = self.client.post("/api/v1/auth/register/", {
+            "first_name": "Ngozi", "last_name": "O", "email": "ngozi@example.org", "password": "Str0ng-pass-99",
+            "username": "ngozi_o", "location": "Luton", "phone": "123"}, format="json")
+        self.assertEqual(r.status_code, 201, r.content)
+        self.assertEqual(r.data["user"]["username"], "ngozi_o")
+        # sign in with the username AND with the email
+        for who in ("ngozi_o", "ngozi@example.org"):
+            r = self.client.post("/api/v1/auth/token/", {"email": who, "password": "Str0ng-pass-99"}, format="json")
+            self.assertEqual(r.status_code, 200, who)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {r.data['access']}")
+        me = self.client.get("/api/v1/me/").data
+        self.assertEqual(me["location"], "Luton")
+        self.assertTrue(me["member_id"].startswith("KP-"))
+
+    def test_username_rules(self):
+        base = {"first_name": "A", "last_name": "B", "email": "u1@example.org", "password": "Str0ng-pass-99"}
+        self.assertEqual(self.client.post("/api/v1/auth/register/", {**base, "username": "a@b"}, format="json").status_code, 400)
+        self.assertEqual(self.client.post("/api/v1/auth/register/", {**base, "username": "ab"}, format="json").status_code, 400)
+        self.assertEqual(self.client.post("/api/v1/auth/register/", {**base, "username": "good_name"}, format="json").status_code, 201)
+        self.assertEqual(self.client.post("/api/v1/auth/register/", {**base, "email": "u2@example.org", "username": "GOOD_name"}, format="json").status_code, 400)
+
+    def test_me_patch_keeps_custom_username(self):
+        self.as_user(self.member)
+        r = self.client.patch("/api/v1/me/", {"username": "new_handle", "location": "Lagos"}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.member.refresh_from_db()
+        self.assertEqual(self.member.username, "new_handle")
+        self.client.patch("/api/v1/me/", {"email": "changed@example.org"}, format="json")
+        self.member.refresh_from_db()
+        self.assertEqual(self.member.username, "new_handle")
+
+    @override_settings(REQUIRE_EMAIL_VERIFICATION=True)
+    def test_email_code_flow_and_enforcement(self):
+        from django.core import mail
+        body = {"first_name": "A", "last_name": "B", "email": "verify@example.org", "password": "Str0ng-pass-99"}
+        self.assertEqual(self.client.post("/api/v1/auth/register/", body, format="json").status_code, 400)  # not verified
+        self.assertEqual(self.client.post("/api/v1/auth/email-code/", {"email": "verify@example.org"}, format="json").status_code, 200)
+        code = mail.outbox[-1].body.split(": ")[1].split("\n")[0]
+        self.assertEqual(self.client.post("/api/v1/auth/email-code/verify/", {"email": "verify@example.org", "code": "000000"}, format="json").status_code, 400)
+        r = self.client.post("/api/v1/auth/email-code/verify/", {"email": "verify@example.org", "code": code}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        token = r.data["email_token"]
+        self.assertEqual(self.client.post("/api/v1/auth/register/", {**body, "email_token": "bad"}, format="json").status_code, 400)
+        self.assertEqual(self.client.post("/api/v1/auth/register/", {**body, "email_token": token}, format="json").status_code, 201)
+        # token is bound to the email it was issued for
+        other = {**body, "email": "other@example.org", "email_token": token}
+        self.assertEqual(self.client.post("/api/v1/auth/register/", other, format="json").status_code, 400)
+
+    def test_code_attempts_limited_and_resend_cooldown(self):
+        from django.core import mail
+        self.client.post("/api/v1/auth/email-code/", {"email": "limit@example.org"}, format="json")
+        self.assertEqual(self.client.post("/api/v1/auth/email-code/", {"email": "limit@example.org"}, format="json").status_code, 429)
+        code = mail.outbox[-1].body.split(": ")[1].split("\n")[0]
+        for _ in range(5):
+            self.client.post("/api/v1/auth/email-code/verify/", {"email": "limit@example.org", "code": "999999" if code != "999999" else "111111"}, format="json")
+        self.assertEqual(self.client.post("/api/v1/auth/email-code/verify/", {"email": "limit@example.org", "code": code}, format="json").status_code, 400)
+
+    def test_password_reset_flow(self):
+        from django.core import mail
+        u = make_user("reset@example.org")
+        self.assertEqual(self.client.post("/api/v1/auth/password-reset/", {"email": "nobody@example.org"}, format="json").status_code, 200)
+        self.assertEqual(len(mail.outbox), 0)  # unknown address: same answer, no email
+        self.client.post("/api/v1/auth/password-reset/", {"email": "reset@example.org"}, format="json")
+        code = mail.outbox[-1].body.split(": ")[1].split("\n")[0]
+        r = self.client.post("/api/v1/auth/password-reset/verify/", {"email": "reset@example.org", "code": code}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        token = r.data["reset_token"]
+        self.assertEqual(self.client.post("/api/v1/auth/password-reset/confirm/", {"reset_token": token, "new_password": "123"}, format="json").status_code, 400)
+        self.assertEqual(self.client.post("/api/v1/auth/password-reset/confirm/", {"reset_token": token, "new_password": "Brand-new-pass-77"}, format="json").status_code, 200)
+        u.refresh_from_db()
+        self.assertTrue(u.check_password("Brand-new-pass-77"))
+        # the token cannot be replayed
+        self.assertEqual(self.client.post("/api/v1/auth/password-reset/confirm/", {"reset_token": token, "new_password": "Another-pass-88"}, format="json").status_code, 400)
+
+    def test_prayer_requests_private_to_owner(self):
+        self.assertEqual(self.client.post("/api/v1/prayer-requests/", {"request": "x"}, format="json").status_code, 401)
+        self.as_user(self.member)
+        r = self.client.post("/api/v1/prayer-requests/", {"request": "Please pray for my family"}, format="json")
+        self.assertEqual(r.status_code, 201, r.content)
+        self.assertEqual(self.client.get("/api/v1/prayer-requests/").data["count"], 1)
+        self.as_user(self.ba1)
+        self.assertEqual(self.client.get("/api/v1/prayer-requests/").data["count"], 0)
+
+    def test_site_info_public(self):
+        r = self.client.get("/api/v1/site/")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("give_instructions", r.data)
+
+
+class RecurringEventApiTests(ApiBase):
+    def test_upcoming_includes_recurring_with_past_start(self):
+        past = timezone.now() - timezone.timedelta(days=200)
+        Event.objects.create(title="Sunday Service", start_at=past, status="confirmed", repeat="weekly", kind="service")
+        Event.objects.create(title="Old one-off", start_at=past, status="confirmed")
+        titles = {e["title"] for e in self.client.get("/api/v1/events/upcoming/").data["results"]}
+        self.assertEqual(titles, {"Sunday Service"})

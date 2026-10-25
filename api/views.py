@@ -2,6 +2,8 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.http import Http404
 from django.utils import timezone
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -10,11 +12,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
+from accounts import codes
 from accounts.access import branches_for, member_branch_ids, scope_to_branches
 from bible.models import BibleTranslation
 from church import services
 from church.models import (Announcement, Branch, Devotional, Event, Member, Notification, NotificationRead,
-                           WorkerApplication, WorkerAssignment)
+                           PrayerRequest, WorkerApplication, WorkerAssignment)
+from core.models import SiteSettings
 from sermons.views import overlay_notes
 from sermons.youtube import get_service
 
@@ -31,9 +35,11 @@ class ApiRoot(APIView):
 
     def get(self, request):
         base = request.build_absolute_uri("/api/v1/")
-        names = ["auth/register/", "auth/token/", "auth/token/refresh/", "me/", "me/password/", "branches/",
-                 "members/", "workers/", "worker-applications/", "events/", "announcements/", "sermons/",
-                 "live/", "devotionals/", "notifications/", "bible/versions/"]
+        names = ["auth/register/", "auth/token/", "auth/token/refresh/", "auth/email-code/", "auth/email-code/verify/",
+                 "auth/password-reset/", "auth/password-reset/verify/", "auth/password-reset/confirm/", "me/",
+                 "me/password/", "branches/", "members/", "workers/", "worker-applications/", "events/",
+                 "announcements/", "sermons/", "live/", "devotionals/", "notifications/", "bible/versions/",
+                 "prayer-requests/", "site/"]
         return Response({n.strip("/").replace("/", "_"): base + n for n in names})
 
 
@@ -57,6 +63,91 @@ class RegisterView(APIView):
         return Response({"user": s.UserSerializer(user, context={"request": request}).data,
                          "refresh": str(refresh), "access": str(refresh.access_token)},
                         status=status.HTTP_201_CREATED)
+
+
+class EmailCodeRequestView(APIView):
+    """Step 1 of sign-up: email a 6-digit code to a new address."""
+
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        ser = s.EmailSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        email = ser.validated_data["email"].lower()
+        if User.objects.filter(email__iexact=email).exists():
+            raise ValidationError({"email": ["An account with this email already exists."]})
+        try:
+            code = codes.issue_code("signup", email)
+        except codes.TooSoon as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        codes.send_code_email(email, code, "signup")
+        return Response({"detail": "Code sent."})
+
+
+class EmailCodeVerifyView(APIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        ser = s.CodeVerifySerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        email, code = ser.validated_data["email"].lower(), ser.validated_data["code"]
+        if not codes.check_code("signup", email, code):
+            raise ValidationError({"code": ["That code isn't right or has expired."]})
+        return Response({"email_token": codes.make_token("signup", email)})
+
+
+class PasswordResetRequestView(APIView):
+    """Always answers 200 so it can't be used to discover which emails have accounts."""
+
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        ser = s.EmailSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        email = ser.validated_data["email"].lower()
+        if User.objects.filter(email__iexact=email, is_active=True).exists():
+            try:
+                codes.send_code_email(email, codes.issue_code("reset", email), "reset")
+            except codes.TooSoon as exc:
+                return Response({"detail": str(exc)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        return Response({"detail": "If that email has an account, a code is on its way."})
+
+
+class PasswordResetVerifyView(APIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        ser = s.CodeVerifySerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        email, code = ser.validated_data["email"].lower(), ser.validated_data["code"]
+        user = User.objects.filter(email__iexact=email, is_active=True).first()
+        if not user or not codes.check_code("reset", email, code):
+            raise ValidationError({"code": ["That code isn't right or has expired."]})
+        return Response({"reset_token": codes.make_token("reset", email, extra=user.password[-12:])})
+
+
+class PasswordResetConfirmView(APIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        ser = s.PasswordResetConfirmSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = codes.read_token("reset", ser.validated_data["reset_token"])
+        user = User.objects.filter(email__iexact=data["e"], is_active=True).first() if data else None
+        if not user or user.password[-12:] != data["x"]:  # tokens die as soon as the password changes
+            raise ValidationError({"reset_token": ["This reset link has expired. Please start again."]})
+        try:
+            validate_password(ser.validated_data["new_password"], user)
+        except DjangoValidationError as exc:
+            raise ValidationError({"new_password": list(exc.messages)})
+        user.set_password(ser.validated_data["new_password"])
+        user.save()
+        return Response({"detail": "Password changed."})
 
 
 class MeView(APIView):
@@ -185,7 +276,8 @@ class EventViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], permission_classes=[permissions.AllowAny])
     def upcoming(self, request):
-        qs = self.filter_queryset(self.get_queryset()).filter(start_at__gte=timezone.now())
+        # one-off events still ahead, plus recurring ones (their first date may be in the past)
+        qs = self.filter_queryset(self.get_queryset()).filter(Q(start_at__gte=timezone.now()) | ~Q(repeat="none"))
         page = self.paginate_queryset(qs)
         ser = self.get_serializer(page if page is not None else qs, many=True)
         return self.get_paginated_response(ser.data) if page is not None else Response(ser.data)
@@ -299,3 +391,35 @@ class BibleVersionList(ListAPIView):
     permission_classes = [permissions.AllowAny]
     pagination_class = None
     queryset = BibleTranslation.objects.all()
+
+
+class PrayerRequestViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.RetrieveModelMixin,
+                           viewsets.GenericViewSet):
+    """Members send prayer requests and see the ones they sent."""
+
+    serializer_class = s.PrayerRequestSerializer
+    pagination_class = StandardPagination
+    filterset_fields = ("status",)
+
+    def get_queryset(self):
+        return PrayerRequest.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        text = serializer.validated_data["request"]
+        member = getattr(self.request.user, "member_record", None)
+        serializer.save(
+            user=self.request.user, title=text[:80], email=self.request.user.email,
+            name=serializer.validated_data.get("name") or self.request.user.display_name,
+            branch=member.branch if member else None)
+
+
+class SiteInfoView(APIView):
+    """Public church details and giving instructions (managed in the web dashboard Settings)."""
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        cfg = SiteSettings.load()
+        return Response({"church_name": cfg.church_name, "tagline": cfg.tagline, "contact_email": cfg.contact_email,
+                         "contact_phone": cfg.contact_phone, "address": cfg.address,
+                         "give_instructions": cfg.give_instructions})

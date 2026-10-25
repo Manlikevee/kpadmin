@@ -66,6 +66,7 @@ class Profile(models.Model):
     phone = models.CharField(max_length=24, blank=True)
     image = models.ImageField(upload_to="profiles/", blank=True)
     bio = models.CharField(max_length=300, blank=True)
+    location = models.CharField(max_length=100, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
