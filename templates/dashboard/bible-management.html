@@ -1,20 +1,341 @@
 {% extends "dashboard/base.html" %}
-{% block title %}Bible Management{% endblock %}{% block crumb %}Bible Management{% endblock %}
-{% block content %}<div class="ph"><div><h1>Bible Management</h1><div class="sub">Manage the Bible translations (JSON files) that power the KP Global app. Upload new versions, replace existing ones or remove them.</div></div>
-<div class="acts"><button class="btn p" type="button" id="upBtn"><span data-i="upload"></span>Upload Bible JSON</button></div></div>
-<div class="stats s3"><div class="card st"><div class="h"><span class="chip" data-i="bible"></span>Total Bible versions</div><div class="n">{{ translations|length }}</div><div class="d">translations available in the app</div></div>
-<div class="card st"><div class="h"><span class="chip" data-i="file"></span>Total storage used</div><div class="n">{{ total_size }}</div><div class="d">across all JSON files</div></div>
-<div class="card st"><div class="h"><span class="chip" data-i="upload"></span>Largest version</div><div class="n">{{ largest.name|default:"—" }}</div><div class="d">{{ largest.size|default:"no files yet" }}</div></div></div>
-<div class="toolbar" style="margin-top:14px"><input class="q" type="search" placeholder="Search translations…" aria-label="Search Bible translations"></div>
-<div class="card"><div class="scroll"><table class="tbl rt"><thead><tr><th>Bible version</th><th>File name</th><th>File size</th><th>Last updated</th><th>File URL</th><th class="end">Actions</th></tr></thead><tbody>
-{% for t in translations %}<tr><td class="pri"><div class="who"><div class="av c{{ forloop.counter0|divisibleby:2|yesno:'0,1' }}">{{ t.name|slice:":2" }}</div><b>{{ t.name }}</b></div></td><td><span class="mono">{{ t.file_name }}</span></td><td>{{ t.size }}</td><td>{{ t.updated_at|date:"d M Y" }}</td><td><a class="url lnk" href="{{ t.url }}" target="_blank" rel="noopener">{{ t.url }}</a></td>
-<td class="end"><a class="ib sm" href="{{ t.url }}" target="_blank" rel="noopener" aria-label="Open {{ t.name }}" title="Open file"><span data-i="eye"></span></a><button class="ib sm replaceBtn" type="button" data-action="{% url 'bible:replace' t.pk %}" data-name="{{ t.name }}" aria-label="Replace {{ t.name }}" title="Edit / replace"><span data-i="edit"></span></button><form class="inline-form" method="post" action="{% url 'bible:delete' t.pk %}" data-confirm-submit="Delete {{ t.name }}?" data-msg="The JSON file will be permanently removed.">{% csrf_token %}<button class="ib sm" type="submit" aria-label="Delete {{ t.name }}" title="Delete"><span data-i="trash"></span></button></form></td></tr>
-{% empty %}<tr><td colspan="6"><div class="empty"><b>No Bible translations yet</b>Upload a JSON file to add the first one.</div></td></tr>{% endfor %}</tbody></table></div></div>
-<dialog id="ud" class="md" data-modal><form method="post" action="{% url 'bible:upload' %}" enctype="multipart/form-data">{% csrf_token %}<div class="dh2"><div><h2>Upload Bible JSON</h2><p>The file is validated on the server before it is saved.</p></div><button class="ib sm" type="button" data-close aria-label="Close"><span data-i="x"></span></button></div>
-<div class="f wide"><label>Bible version name<input name="name" required maxlength="12" pattern="[A-Za-z0-9_\-]{1,12}" placeholder="e.g. NKJV"><small>Letters, numbers, - or _ · up to 12 characters</small></label><label>JSON file<input type="file" name="file" accept=".json,application/json" required></label></div>
-<div class="acts"><button class="btn" type="button" data-close>Cancel</button><button class="btn p" type="submit">Upload</button></div></form></dialog>
-<dialog id="rd" class="md" data-modal><form id="rf" method="post" enctype="multipart/form-data">{% csrf_token %}<div class="dh2"><div><h2>Replace Bible JSON</h2><p>Choose a new JSON file. You can also rename the version.</p></div><button class="ib sm" type="button" data-close aria-label="Close"><span data-i="x"></span></button></div>
-<div class="f wide"><label>Bible version name<input name="name" id="rName" required maxlength="12" pattern="[A-Za-z0-9_\-]{1,12}"></label><label>New JSON file<input type="file" name="file" accept=".json,application/json" required></label></div>
-<div class="acts"><button class="btn" type="button" data-close>Cancel</button><button class="btn p" type="submit">Replace file</button></div></form></dialog>{% endblock %}
-{% block extra_js %}<script>document.getElementById('upBtn').onclick=function(){document.getElementById('ud').showModal()};
-document.querySelectorAll('.replaceBtn').forEach(function(b){b.onclick=function(){var f=document.getElementById('rf');f.action=b.dataset.action;document.getElementById('rName').value=b.dataset.name;document.getElementById('rd').showModal()}});</script>{% endblock %}
+
+{% block title %}Bible Management{% endblock %}
+{% block crumb %}Bible Management{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1>Bible Management</h1>
+    <div class="sub">
+      Manage the Bible translations (JSON files) that power the KP Global app.
+      Upload new versions, replace existing ones or remove them.
+    </div>
+  </div>
+
+  <div class="acts">
+    <button class="btn p" type="button" id="upBtn">
+      <span data-i="upload"></span>Upload Bible JSON
+    </button>
+  </div>
+</div>
+
+<div class="stats s3">
+  <div class="card st">
+    <div class="h">
+      <span class="chip" data-i="bible"></span>Total Bible versions
+    </div>
+    <div class="n">{{ translations|length }}</div>
+    <div class="d">translations available in the app</div>
+  </div>
+
+  <div class="card st">
+    <div class="h">
+      <span class="chip" data-i="file"></span>Total storage used
+    </div>
+    <div class="n">{{ total_size }}</div>
+    <div class="d">across all JSON files</div>
+  </div>
+
+  <div class="card st">
+    <div class="h">
+      <span class="chip" data-i="upload"></span>Largest version
+    </div>
+    <div class="n">{{ largest.name|default:"—" }}</div>
+    <div class="d">{{ largest.size|default:"no files yet" }}</div>
+  </div>
+</div>
+
+<div class="toolbar" style="margin-top: 14px">
+  <input
+    class="q"
+    type="search"
+    placeholder="Search translations…"
+    aria-label="Search Bible translations"
+  />
+</div>
+
+<div class="card">
+  <div class="scroll">
+    <table class="tbl rt">
+      <thead>
+        <tr>
+          <th>Bible version</th>
+          <th>File name</th>
+          <th>File size</th>
+          <th>Last updated</th>
+          <th>File URL</th>
+          <th class="end">Actions</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for t in translations %}
+        <tr>
+          <td class="pri">
+            <div class="who">
+              <div class="av c{{ forloop.counter0|divisibleby:2|yesno:'0,1' }}">
+                {{ t.name|slice:":2" }}
+              </div>
+              <b>{{ t.name }}</b>
+            </div>
+          </td>
+
+          <td><span class="mono">{{ t.file_name }}</span></td>
+          <td>{{ t.size }}</td>
+          <td>{{ t.updated_at|date:"d M Y" }}</td>
+
+          <td>
+            <a
+              class="url lnk"
+              href="{{ t.url }}"
+              target="_blank"
+              rel="noopener noreferrer"
+            >{{ t.url }}</a>
+          </td>
+
+          <td class="end">
+            <a
+              class="ib sm"
+              href="{{ t.url }}"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open {{ t.name }}"
+              title="Open file"
+            >
+              <span data-i="eye"></span>
+            </a>
+
+            <button
+              class="ib sm replaceBtn"
+              type="button"
+              data-action="{% url 'bible:replace' t.pk %}"
+              data-name="{{ t.name }}"
+              aria-label="Replace {{ t.name }}"
+              title="Edit / replace"
+            >
+              <span data-i="edit"></span>
+            </button>
+
+            <form
+              class="inline-form"
+              method="post"
+              action="{% url 'bible:delete' t.pk %}"
+              data-confirm-submit="Delete {{ t.name }}?"
+              data-msg="The JSON file will be permanently removed."
+            >
+              {% csrf_token %}
+              <button
+                class="ib sm"
+                type="submit"
+                aria-label="Delete {{ t.name }}"
+                title="Delete"
+              >
+                <span data-i="trash"></span>
+              </button>
+            </form>
+          </td>
+        </tr>
+
+        {% empty %}
+        <tr>
+          <td colspan="6">
+            <div class="empty">
+              <b>No Bible translations yet</b>
+              Upload a JSON file to add the first one.
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Upload Bible dialog -->
+<dialog id="ud" class="md" data-modal>
+  <form
+    id="uploadForm"
+    method="post"
+    action="{% url 'bible:upload' %}"
+    enctype="multipart/form-data"
+  >
+    {% csrf_token %}
+
+    <div class="dh2">
+      <div>
+        <h2>Upload Bible JSON</h2>
+        <p>The file is validated on the server before it is saved.</p>
+      </div>
+
+      <button class="ib sm" type="button" data-close aria-label="Close">
+        <span data-i="x"></span>
+      </button>
+    </div>
+
+    <div class="f wide">
+      <label>
+        Bible version name
+        <input
+          id="uploadName"
+          name="name"
+          required
+          maxlength="12"
+          pattern="[A-Za-z0-9_-]{1,12}"
+          placeholder="Automatically detected from filename"
+        />
+        <small>
+          Automatically filled from the filename. You can edit it if needed.
+        </small>
+      </label>
+
+      <label>
+        JSON file
+        <input
+          id="uploadFile"
+          type="file"
+          name="file"
+          accept=".json,application/json"
+          required
+        />
+      </label>
+    </div>
+
+    <div class="acts">
+      <button class="btn" type="button" data-close>Cancel</button>
+      <button class="btn p" type="submit">Upload</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Replace Bible dialog -->
+<dialog id="rd" class="md" data-modal>
+  <form
+    id="rf"
+    method="post"
+    enctype="multipart/form-data"
+  >
+    {% csrf_token %}
+
+    <div class="dh2">
+      <div>
+        <h2>Replace Bible JSON</h2>
+        <p>
+          Choose a new JSON file. The version name will be detected from
+          the filename and can be edited.
+        </p>
+      </div>
+
+      <button class="ib sm" type="button" data-close aria-label="Close">
+        <span data-i="x"></span>
+      </button>
+    </div>
+
+    <div class="f wide">
+      <label>
+        Bible version name
+        <input
+          name="name"
+          id="rName"
+          required
+          maxlength="12"
+          pattern="[A-Za-z0-9_-]{1,12}"
+        />
+        <small>
+          Automatically filled from the selected filename.
+        </small>
+      </label>
+
+      <label>
+        New JSON file
+        <input
+          id="replaceFile"
+          type="file"
+          name="file"
+          accept=".json,application/json"
+          required
+        />
+      </label>
+    </div>
+
+    <div class="acts">
+      <button class="btn" type="button" data-close>Cancel</button>
+      <button class="btn p" type="submit">Replace file</button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const uploadDialog = document.getElementById("ud");
+    const replaceDialog = document.getElementById("rd");
+
+    const uploadName = document.getElementById("uploadName");
+    const uploadFile = document.getElementById("uploadFile");
+
+    const replaceName = document.getElementById("rName");
+    const replaceFile = document.getElementById("replaceFile");
+
+    const replaceForm = document.getElementById("rf");
+
+    // Open upload dialog.
+    document.getElementById("upBtn").addEventListener("click", function () {
+      uploadDialog.showModal();
+    });
+
+    // Convert a filename into a Bible version name.
+    // AKJV_bible.json -> AKJV
+    // KJV.json        -> KJV
+    // NIV_BIBLE.JSON  -> NIV
+    function getBibleName(filename) {
+      const fileName = filename.split(/[\\/]/).pop();
+
+      return fileName
+        .replace(/\.json$/i, "")
+        .replace(/_bible$/i, "");
+    }
+
+    // Automatically fill the name when selecting an upload file.
+    uploadFile.addEventListener("change", function () {
+      if (this.files && this.files.length > 0) {
+        uploadName.value = getBibleName(this.files[0].name);
+      }
+    });
+
+    // Open the replacement dialog.
+    document.querySelectorAll(".replaceBtn").forEach(function (button) {
+      button.addEventListener("click", function () {
+        replaceForm.action = button.dataset.action;
+
+        // Start with the existing version name.
+        replaceName.value = button.dataset.name;
+
+        // Require selection of a new file for this replacement.
+        replaceFile.value = "";
+
+        replaceDialog.showModal();
+      });
+    });
+
+    // Automatically fill the name when selecting a replacement file.
+    replaceFile.addEventListener("change", function () {
+      if (this.files && this.files.length > 0) {
+        replaceName.value = getBibleName(this.files[0].name);
+      }
+    });
+
+    // Reset upload fields when the upload dialog closes.
+    uploadDialog.addEventListener("close", function () {
+      uploadFile.value = "";
+      uploadName.value = "";
+    });
+
+    // Reset replacement file selection when the dialog closes.
+    replaceDialog.addEventListener("close", function () {
+      replaceFile.value = "";
+    });
+  });
+</script>
+{% endblock %}

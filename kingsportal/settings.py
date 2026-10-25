@@ -50,6 +50,9 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+
+    "cloudinary_storage",
+    "cloudinary",
     # third party
     "rest_framework",
     "rest_framework_simplejwt",
@@ -143,11 +146,31 @@ USE_I18N = True
 USE_TZ = True
 
 # --- Static / media ---------------------------------------------------------
-STATIC_URL = "static/"
+CLOUDINARY_STORAGE = {
+    "CLOUD_NAME": os.environ.get("CLOUDINARY_CLOUD_NAME", "").strip(),
+    "API_KEY": os.environ.get("CLOUDINARY_API_KEY", "").strip(),
+    "API_SECRET": os.environ.get("CLOUDINARY_API_SECRET", "").strip(),
+    "RESOURCE_TYPE": "raw",
+    "INVALIDATE": True,
+}
+
+# Static files: CSS, JavaScript, logos, etc.
+STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
-MEDIA_URL = "media/"
-MEDIA_ROOT = BASE_DIR / "media"
+
+# Uploaded media files: Cloudinary
+MEDIA_URL = "/media/"
+
+STORAGES = {
+    "default": {
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
 DATA_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 
 # --- Email ------------------------------------------------------------------

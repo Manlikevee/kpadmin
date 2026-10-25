@@ -1,68 +1,107 @@
-from pathlib import Path
+
+import os
 
 from django.conf import settings
-from django.core.exceptions import SuspiciousFileOperation
 from django.db import models
-from django.db.models.functions import Lower
-
-BIBLE_DIR = "bible"
+from cloudinary_storage.storage import RawMediaCloudinaryStorage
 
 
 def bible_upload_to(instance, filename):
-    # The stored name is derived from the validated version name, never from the
-    # client-supplied filename, so path tricks in the upload name are irrelevant.
-    return f"{BIBLE_DIR}/{instance.name.upper()}_bible.json"
+    """
+    Store Bible translation JSON files in the Cloudinary bible folder.
+    Example: bible/KJV_bible.json
+    """
+    version_name = instance.name.strip().upper()
+    return f"bible/{version_name}_bible.json"
 
 
-def assert_in_bible_dir(path):
-    """Refuse any file operation outside MEDIA_ROOT/bible."""
-    root = (Path(settings.MEDIA_ROOT) / BIBLE_DIR).resolve()
-    target = Path(path).resolve()
-    if root != target and root not in target.parents:
-        raise SuspiciousFileOperation("File is outside the Bible upload directory.")
-    return target
+def human_size(size_in_bytes):
+    """Convert a file size in bytes into a human-readable format."""
+    if size_in_bytes is None or size_in_bytes < 0:
+        size_in_bytes = 0
 
+    if size_in_bytes < 1024:
+        return f"{size_in_bytes} B"
 
-def human_size(n):
-    for unit in ("B", "KB", "MB", "GB"):
-        if n < 1024 or unit == "GB":
-            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
-        n /= 1024
+    if size_in_bytes < 1024**2:
+        return f"{size_in_bytes / 1024:.2f} KB"
+
+    if size_in_bytes < 1024**3:
+        return f"{size_in_bytes / (1024**2):.2f} MB"
+
+    return f"{size_in_bytes / (1024**3):.2f} GB"
 
 
 class BibleTranslation(models.Model):
-    name = models.CharField(max_length=12, help_text="Short version code, e.g. KJV.")
-    file = models.FileField(upload_to=bible_upload_to, max_length=200)
-    size_in_bytes = models.PositiveBigIntegerField(default=0)
-    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
-                                    related_name="+")
+    name = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text="Bible translation name, e.g. KJV, NIV, ESV.",
+    )
+
+    file = models.FileField(
+        upload_to=bible_upload_to,
+        storage=RawMediaCloudinaryStorage(),
+        max_length=200,
+        help_text="Upload the Bible translation JSON file.",
+    )
+
+    size_in_bytes = models.PositiveBigIntegerField(
+        default=0,
+        editable=False,
+    )
+
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bible_translations",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["name"]
-        constraints = [models.UniqueConstraint(Lower("name"), name="uniq_bible_name_ci")]
+        verbose_name = "Bible Translation"
+        verbose_name_plural = "Bible Translations"
+        constraints = [
+            models.UniqueConstraint(
+                models.functions.Lower("name"),
+                name="unique_bible_translation_name_case_insensitive",
+            )
+        ]
 
     def save(self, *args, **kwargs):
-        self.name = (self.name or "").strip().upper()
-        if self.file and hasattr(self.file, "size"):
-            try:
-                self.size_in_bytes = self.file.size
-            except (OSError, ValueError):
-                pass
+        if self.name:
+            self.name = self.name.strip().upper()
+
+        # Do not call self.file.size here.
+        # Cloudinary storage may raise KeyError if its response
+        # does not contain a content-length header.
         super().save(*args, **kwargs)
 
     @property
     def size(self):
+        """Return a human-readable file size."""
         return human_size(self.size_in_bytes)
 
     @property
     def file_name(self):
-        return Path(self.file.name).name if self.file else ""
+        """Return the uploaded file's name."""
+        return os.path.basename(self.file.name) if self.file else None
 
     @property
     def url(self):
-        return self.file.url if self.file else ""
+        """Return the file URL when available."""
+        if self.file:
+            try:
+                return self.file.url
+            except (ValueError, OSError):
+                return None
+
+        return None
 
     def __str__(self):
         return self.name
