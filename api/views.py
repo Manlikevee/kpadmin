@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.http import Http404
@@ -17,7 +19,7 @@ from accounts.access import branches_for, member_branch_ids, scope_to_branches
 from bible.models import BibleTranslation
 from church import services
 from church.models import (Announcement, Branch, Devotional, Event, Member, Notification, NotificationRead,
-                           PrayerRequest, WorkerApplication, WorkerAssignment)
+                           PrayerRequest, WorkerApplication, WorkerAssignment, Story)
 from core.models import SiteSettings
 from sermons.views import overlay_notes
 from sermons.youtube import get_service
@@ -423,3 +425,44 @@ class SiteInfoView(APIView):
         return Response({"church_name": cfg.church_name, "tagline": cfg.tagline, "contact_email": cfg.contact_email,
                          "contact_phone": cfg.contact_phone, "address": cfg.address,
                          "give_instructions": cfg.give_instructions})
+
+
+class StoryViewSet(viewsets.ModelViewSet):
+    serializer_class = s.StorySerializer
+    permission_classes = [ReadAnyWriteStaff]
+    pagination_class = StandardPagination
+    filterset_fields = ("branch", "is_video")
+    search_fields = ("title", "caption")
+
+    def get_queryset(self):
+        cutoff = timezone.now() - timedelta(hours=48)
+        qs = Story.objects.select_related("branch").filter(
+            created_at__gte=cutoff
+        )
+
+        user = self.request.user
+
+        # Superadmins can see every story across every branch.
+        if user.is_authenticated and getattr(
+            user, "is_super_admin", False
+        ):
+            return qs
+
+        # Other staff can only access stories in their permitted branches.
+        if user.is_authenticated and getattr(user, "is_staff_role", False):
+            if self.request.method == "GET":
+                return scope_to_branches(
+                    qs, user, include_global=True
+                )
+            return scope_to_branches(qs, user)
+
+        # Public users and regular members see published stories only.
+        return qs.filter(
+            is_published=True
+        ).exclude(media="")
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        instance.delete()

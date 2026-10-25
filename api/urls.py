@@ -14,6 +14,7 @@ router.register("announcements", views.AnnouncementViewSet, basename="announceme
 router.register("devotionals", views.DevotionalViewSet, basename="devotional")
 router.register("notifications", views.NotificationViewSet, basename="notification")
 router.register("prayer-requests", views.PrayerRequestViewSet, basename="prayer-request")
+router.register("stories", views.StoryViewSet, basename="story")
 
 urlpatterns = [
     path("", views.ApiRoot.as_view(), name="api-root"),
@@ -32,5 +33,6 @@ urlpatterns = [
     path("sermons/<str:video_id>/", views.SermonDetailView.as_view(), name="api-sermon"),
     path("live/", views.LiveStreamView.as_view(), name="api-live"),
     path("bible/versions/", views.BibleVersionList.as_view(), name="api-bible-versions"),
+
 ]
 urlpatterns += router.urls

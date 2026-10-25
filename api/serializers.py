@@ -13,7 +13,7 @@ from accounts.services import create_member_account
 from bible.models import BibleTranslation
 from church import services
 from church.models import (Announcement, Branch, Devotional, Event, Member, Ministry, Notification,
-                           PrayerRequest, WorkerApplication, WorkerAssignment)
+                           PrayerRequest, WorkerApplication, WorkerAssignment, Story)
 
 User = get_user_model()
 
@@ -363,3 +363,39 @@ class PrayerRequestSerializer(serializers.ModelSerializer):
         if not value.strip():
             raise serializers.ValidationError("Please write your prayer request.")
         return value.strip()
+
+
+
+
+class StorySerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(
+        source="branch.name",
+        read_only=True,
+        default=None,
+    )
+
+    class Meta:
+        model = Story
+        fields = [
+            "id",
+            "title",
+            "caption",
+            "media",
+            "is_video",
+            "branch",
+            "branch_name",
+            "is_published",
+            "published_at",
+            "created_at",
+        ]
+        read_only_fields = [
+            "id",
+            "created_at",
+        ]
+
+    def validate_media(self, value):
+        if value and value.size > 100 * 1024 * 1024:
+            raise serializers.ValidationError(
+                "Story media must be 100 MB or smaller."
+            )
+        return value
