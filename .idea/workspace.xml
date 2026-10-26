@@ -5,15 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="53a4340c-028d-4f9f-9eeb-2085bf816e33" name="Changes" comment="vee">
-      <change afterPath="$PROJECT_DIR$/templates/dashboard/notes/list.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/api/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/api/serializers.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/api/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/api/urls.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/api/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/api/views.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/church/context_processors.py" beforeDir="false" afterPath="$PROJECT_DIR$/church/context_processors.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/church/forms.py" beforeDir="false" afterPath="$PROJECT_DIR$/church/forms.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/church/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/church/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/church/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/church/urls.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/church/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/church/views.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -120,7 +112,31 @@
       <option name="project" value="LOCAL" />
       <updated>1792949580930</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="vee">
+      <option name="closed" value="true" />
+      <created>1793052212556</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1793052212556</updated>
+    </task>
+    <task id="LOCAL-00007" summary="vee">
+      <option name="closed" value="true" />
+      <created>1793052362227</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1793052362227</updated>
+    </task>
+    <task id="LOCAL-00008" summary="vee">
+      <option name="closed" value="true" />
+      <created>1793052416259</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1793052416259</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
