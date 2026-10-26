@@ -4,13 +4,16 @@ from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.db.models import Count, Q, Sum
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views import View
 from django.views.decorators.http import require_POST
+from django.views.generic import CreateView, UpdateView, DeleteView, ListView
 
 from accounts.access import branches_for, can_manage_branch, member_branch_ids, scope_to_branches
 from accounts.mixins import (RoleRequiredMixin, StaffRequiredMixin, SuperAdminRequiredMixin,
@@ -21,9 +24,10 @@ from sermons.youtube import get_service
 
 from . import forms, services
 from .crud import ManagedDeleteView, ManagedDetailView, ManagedFormView, ManagedListView
+from .forms import NoteForm
 from .models import (Announcement, Branch, Devotional, Event, GivingRecord, Member, Ministry,
                      Notification, PraiseReport, PrayerRequest, Story, WorkerApplication,
-                     WorkerAssignment)
+                     WorkerAssignment, Note)
 
 User = get_user_model()
 
@@ -714,3 +718,75 @@ class SettingsView(SuperAdminRequiredMixin, View):
             messages.success(request, "Settings saved.")
             return redirect("church:settings")
         return render(request, "dashboard/settings.html", {"form": form, "page_id": "settings"})
+
+
+
+
+class NoteListView(LoginRequiredMixin, ListView):
+    model = Note
+    template_name = "dashboard/notes/list.html"
+    context_object_name = "notes"
+
+    def get_queryset(self):
+        queryset = Note.objects.filter(
+            user=self.request.user
+        ).order_by("-is_pinned", "-updated_at")
+
+        category = self.request.GET.get("category", "")
+        query = self.request.GET.get("q", "").strip()
+
+        if category in Note.Category.values:
+            queryset = queryset.filter(category=category)
+
+        if query:
+            from django.db.models import Q
+
+            queryset = queryset.filter(
+                Q(title__icontains=query)
+                | Q(body__icontains=query)
+                | Q(scripture__icontains=query)
+            )
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["categories"] = Note.Category.choices
+        context["selected_category"] = self.request.GET.get(
+            "category", ""
+        )
+        context["search_query"] = self.request.GET.get("q", "")
+        context["total_notes"] = Note.objects.filter(
+            user=self.request.user
+        ).count()
+        return context
+
+
+class NoteCreateView(LoginRequiredMixin, CreateView):
+    model = Note
+    form_class = NoteForm
+    template_name = "dashboard/notes/form.html"
+    success_url = reverse_lazy("church:notes")
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        return super().form_valid(form)
+
+
+class NoteUpdateView(LoginRequiredMixin, UpdateView):
+    model = Note
+    form_class = NoteForm
+    template_name = "dashboard/notes/form.html"
+    success_url = reverse_lazy("church:notes")
+
+    def get_queryset(self):
+        return Note.objects.filter(user=self.request.user)
+
+
+class NoteDeleteView(LoginRequiredMixin, DeleteView):
+    model = Note
+    template_name = "dashboard/notes/confirm_delete.html"
+    success_url = reverse_lazy("church:notes")
+
+    def get_queryset(self):
+        return Note.objects.filter(user=self.request.user)

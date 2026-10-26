@@ -1,0 +1,113 @@
+{% extends "dashboard/base.html" %}
+{% load static %}
+{% block title %}My Notes{% endblock %}
+{% block crumb %}My Notes{% endblock %}
+
+{% block extra_head %}
+  {{ block.super }}
+  {% include "dashboard/notes/_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="notes-page">
+  <div class="notes-hero">
+    <div>
+      <div class="pill"><span data-i="clip"></span> Personal workspace</div>
+      <h1>My notes</h1>
+      <div class="sub">A quiet place to keep sermon notes, scripture references, prayers and personal reflections.</div>
+      <div class="notes-count"><strong>{{ total_notes }}</strong> saved {% if total_notes == 1 %}note{% else %}notes{% endif %}</div>
+    </div>
+    <div class="acts">
+      <a class="btn p" href="{% url 'church:note-create' %}"><span data-i="plus"></span> New note</a>
+    </div>
+  </div>
+
+  <form method="get" class="card notes-toolbar" role="search">
+    <div>
+      <label for="notes-q">Search notes</label>
+      <div class="notes-search">
+        <span class="notes-search-icon" aria-hidden="true">⌕</span>
+        <input id="notes-q" type="search" name="q" value="{{ search_query }}" placeholder="Search titles, content or scripture…">
+      </div>
+    </div>
+    <div>
+      <label for="notes-category">Category</label>
+      <select id="notes-category" name="category">
+        <option value="">All categories</option>
+        {% for value, label in categories %}
+          <option value="{{ value }}"{% if selected_category == value %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="notes-toolbar-actions acts">
+      <button class="btn p" type="submit">Search</button>
+      <a class="btn" href="{% url 'church:notes' %}">Reset</a>
+    </div>
+  </form>
+
+  <nav class="notes-categories" aria-label="Filter notes by category">
+    <a class="notes-category{% if not selected_category %} active{% endif %}" href="{% url 'church:notes' %}{% if search_query %}?q={{ search_query|urlencode }}{% endif %}">
+      All notes <span class="count">{{ total_notes }}</span>
+    </a>
+    {% for value, label in categories %}
+      <a class="notes-category{% if selected_category == value %} active{% endif %}"
+         href="?category={{ value }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}">
+        {{ label }}
+      </a>
+    {% endfor %}
+  </nav>
+
+  {% if notes %}
+    <div class="notes-list">
+      {% for note in notes %}
+        <article class="notes-card">
+          <div class="notes-card-top">
+            <div style="min-width:0">
+              <h2 class="notes-card-title">
+                <a href="{% url 'church:note-update' note.pk %}">{{ note.title|default:"Untitled note" }}</a>
+              </h2>
+              <div class="notes-card-meta">
+                <span class="notes-tag">{{ note.get_category_display }}</span>
+                {% if note.scripture %}<span class="notes-tag muted">{{ note.scripture }}</span>{% endif %}
+              </div>
+            </div>
+            {% if note.is_pinned %}<span class="notes-pin" title="Pinned note">◆ Pinned</span>{% endif %}
+          </div>
+
+          {% if note.body %}
+            <div class="notes-preview">{{ note.body|striptags|truncatechars:220|linebreaksbr }}</div>
+          {% else %}
+            <div class="notes-preview">No content yet. Open this note to add your thoughts.</div>
+          {% endif %}
+
+          {% if note.scripture %}
+            <div class="notes-scripture"><span class="mark">“</span><span>{{ note.scripture }}</span></div>
+          {% endif %}
+
+          <div class="notes-card-footer">
+            <div class="notes-updated">
+              Updated {{ note.updated_at|date:"j M Y" }}<br>
+              {{ note.updated_at|date:"g:i A" }}
+            </div>
+            <div class="notes-actions">
+              <a class="btn s" href="{% url 'church:note-update' note.pk %}"><span data-i="edit"></span> Edit</a>
+              <a class="btn s" href="{% url 'church:note-delete' note.pk %}"><span data-i="trash"></span> Delete</a>
+            </div>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="card notes-empty">
+      <div class="notes-empty-icon" aria-hidden="true">✎</div>
+      <h2>{% if search_query or selected_category %}No matching notes{% else %}Capture what God is saying{% endif %}</h2>
+      <p>{% if search_query or selected_category %}Try another search term or category filter.{% else %}Keep what stands out during sermons, devotions and prayer in one personal space. Your notes are only visible to you.{% endif %}</p>
+      {% if search_query or selected_category %}
+        <a class="btn" href="{% url 'church:notes' %}">Clear filters</a>
+      {% else %}
+        <a class="btn p" href="{% url 'church:note-create' %}"><span data-i="plus"></span> Write your first note</a>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -13,7 +13,7 @@ from accounts.services import create_member_account
 from bible.models import BibleTranslation
 from church import services
 from church.models import (Announcement, Branch, Devotional, Event, Member, Ministry, Notification,
-                           PrayerRequest, WorkerApplication, WorkerAssignment, Story)
+                           PrayerRequest, WorkerApplication, WorkerAssignment, Story, Note)
 
 User = get_user_model()
 
@@ -398,4 +398,41 @@ class StorySerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "Story media must be 100 MB or smaller."
             )
+        return value
+
+
+class NoteSerializer(serializers.ModelSerializer):
+    category_label = serializers.CharField(
+        source="get_category_display",
+        read_only=True,
+    )
+
+    class Meta:
+        model = Note
+        fields = [
+            "id",
+            "title",
+            "body",
+            "category",
+            "category_label",
+            "scripture",
+            "is_pinned",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "category_label",
+            "created_at",
+            "updated_at",
+        ]
+
+    def validate_category(self, value):
+        valid_categories = Note.Category.values
+
+        if value not in valid_categories:
+            raise serializers.ValidationError(
+                "Select a valid note category."
+            )
+
         return value

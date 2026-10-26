@@ -19,7 +19,7 @@ from accounts.access import branches_for, member_branch_ids, scope_to_branches
 from bible.models import BibleTranslation
 from church import services
 from church.models import (Announcement, Branch, Devotional, Event, Member, Notification, NotificationRead,
-                           PrayerRequest, WorkerApplication, WorkerAssignment, Story)
+                           PrayerRequest, WorkerApplication, WorkerAssignment, Story, Note)
 from core.models import SiteSettings
 from sermons.views import overlay_notes
 from sermons.youtube import get_service
@@ -28,6 +28,7 @@ from . import serializers as s
 from .filters import AnnouncementFilter, ApplicationFilter, EventFilter, MemberFilter
 from .pagination import StandardPagination
 from .permissions import IsStaffRole, ReadAnyWriteStaff, ReadAnyWriteSuper
+from .serializers import NoteSerializer
 
 User = get_user_model()
 
@@ -466,3 +467,34 @@ class StoryViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         instance.delete()
+
+
+class NoteViewSet(viewsets.ModelViewSet):
+    serializer_class = NoteSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # A user can only access their own notes.
+        return Note.objects.filter(
+            user=self.request.user
+        ).order_by("-is_pinned", "-updated_at")
+
+    def perform_create(self, serializer):
+        # Never accept the owner from the request body.
+        serializer.save(user=self.request.user)
+
+    @action(detail=True, methods=["post"], url_path="toggle-pin")
+    def toggle_pin(self, request, pk=None):
+        note = self.get_object()
+        note.is_pinned = not note.is_pinned
+        note.save(update_fields=["is_pinned", "updated_at"])
+
+        return Response({
+            "id": note.id,
+            "is_pinned": note.is_pinned,
+            "message": (
+                "Note pinned."
+                if note.is_pinned
+                else "Note unpinned."
+            ),
+        })

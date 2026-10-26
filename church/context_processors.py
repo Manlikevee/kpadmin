@@ -32,6 +32,7 @@ def dashboard_nav(request):
                 ("church:praise_reports", "Praise Reports", "praise", pending_praise or None, "praise-reports"),
                 ("church:stories", "Stories", "stories", None, "stories"),
                 ("church:announcements", "Announcements", "announce", None, "announcements"),
+                ("church:notes", "Notes", "file", None, "notes"),
             ]),
             ("Communication", [
                 ("church:notifications", "Notifications", "notify", None, "notifications"),

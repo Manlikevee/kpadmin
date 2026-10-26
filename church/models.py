@@ -427,3 +427,59 @@ class ContactMessage(TimeStamped):
 
     def __str__(self):
         return f"{self.get_kind_display()} from {self.name}"
+
+
+
+class Note(TimeStamped):
+    class Category(models.TextChoices):
+        SERMON = "sermon", "Sermon"
+        DEVOTION = "devotion", "Devotion"
+        PRAYER = "prayer", "Prayer"
+        PERSONAL = "personal", "Personal"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="personal_notes",
+    )
+
+    title = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+    )
+
+    body = models.TextField(blank=True, default="")
+
+    category = models.CharField(
+        max_length=20,
+        choices=Category.choices,
+        default=Category.SERMON,
+        db_index=True,
+    )
+
+    scripture = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+    )
+
+    is_pinned = models.BooleanField(default=False, db_index=True)
+
+    class Meta:
+        ordering = ["-is_pinned", "-updated_at"]
+        verbose_name = "Note"
+        verbose_name_plural = "Notes"
+        indexes = [
+            models.Index(
+                fields=["user", "-updated_at"],
+                name="note_user_updated_idx",
+            ),
+            models.Index(
+                fields=["user", "category"],
+                name="note_user_category_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return self.title or "Untitled note"

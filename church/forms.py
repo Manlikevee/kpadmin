@@ -5,7 +5,7 @@ from django.utils import timezone
 from accounts.access import branches_for
 
 from .models import (Announcement, Branch, Devotional, Event, GivingRecord, Member, Ministry,
-                     Notification, PraiseReport, Story, WorkerApplication, WorkerAssignment)
+                     Notification, PraiseReport, Story, WorkerApplication, WorkerAssignment, Note)
 
 User = get_user_model()
 
@@ -268,3 +268,25 @@ class NotificationForm(forms.ModelForm):
         if not data.get("send_at"):
             data["send_at"] = timezone.now()
         return data
+
+
+class NoteForm(forms.ModelForm):
+    class Meta:
+        model = Note
+        fields = ["title", "body", "category", "scripture", "is_pinned"]
+        widgets = {
+            "title": forms.TextInput(attrs={
+                "placeholder": "Give your note a title",
+            }),
+            "body": forms.Textarea(attrs={
+                "rows": 10,
+                "placeholder": "Write your notes here...",
+            }),
+            "scripture": forms.TextInput(attrs={
+                "placeholder": "e.g. Hebrews 11:1",
+            }),
+            "category": forms.Select(),
+            "is_pinned": forms.CheckboxInput(),
+        }
+
+

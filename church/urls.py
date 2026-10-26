@@ -78,4 +78,16 @@ urlpatterns = [
     path("stories/<int:pk>/delete/", v.StoryDelete.as_view(), name="story_delete"),
     path("notifications/", v.NotificationsAdmin.as_view(), name="notifications"),
     path("settings/", v.SettingsView.as_view(), name="settings"),
+    path("notes/", v.NoteListView.as_view(), name="notes"),
+    path("notes/new/", v.NoteCreateView.as_view(), name="note-create"),
+    path(
+        "notes/<int:pk>/edit/",
+        v.NoteUpdateView.as_view(),
+        name="note-update",
+    ),
+    path(
+        "notes/<int:pk>/delete/",
+        v.NoteDeleteView.as_view(),
+        name="note-delete",
+    ),
 ]

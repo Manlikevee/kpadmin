@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from . import views
+from .views import NoteViewSet
 
 router = DefaultRouter()
 router.register("branches", views.BranchViewSet, basename="branch")
@@ -15,6 +16,7 @@ router.register("devotionals", views.DevotionalViewSet, basename="devotional")
 router.register("notifications", views.NotificationViewSet, basename="notification")
 router.register("prayer-requests", views.PrayerRequestViewSet, basename="prayer-request")
 router.register("stories", views.StoryViewSet, basename="story")
+router.register("notes", NoteViewSet, basename="note")
 
 urlpatterns = [
     path("", views.ApiRoot.as_view(), name="api-root"),
