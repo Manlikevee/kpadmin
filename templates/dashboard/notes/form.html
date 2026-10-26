@@ -1,0 +1,82 @@
+{% extends "dashboard/base.html" %}
+{% block title %}{% if object %}Edit note{% else %}New note{% endif %}{% endblock %}
+{% block crumb %}<a href="{% url 'church:notes' %}">My Notes</a> / {% if object %}Edit{% else %}New note{% endif %}{% endblock %}
+
+{% block extra_head %}
+  {{ block.super }}
+  {% include "dashboard/notes/_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="notes-page">
+  <a class="back" href="{% url 'church:notes' %}"><span data-i="back"></span>Back to notes</a>
+  <div class="notes-hero" style="margin-top:14px">
+    <div>
+      <div class="pill"><span data-i="clip"></span> Personal workspace</div>
+      <h1>{% if object %}Edit note{% else %}Create a note{% endif %}</h1>
+      <div class="sub">{% if object %}Make changes to your note and save when you're ready.{% else %}Capture an idea, a scripture, or something you want to remember.{% endif %}</div>
+    </div>
+  </div>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="flash error">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="notes-form-layout">
+      <section class="card notes-form-card">
+        <div class="notes-field">
+          <label for="{{ form.title.id_for_label }}">Title</label>
+          {{ form.title }}
+          {% for error in form.title.errors %}<div class="notes-field-error">{{ error }}</div>{% endfor %}
+        </div>
+
+        <div class="notes-field">
+          <label for="{{ form.body.id_for_label }}">Your note</label>
+          {{ form.body }}
+          <div class="helptext">You can write plain text here. If the mobile app stores rich-text HTML, make sure the display layer sanitizes it before rendering.</div>
+          {% for error in form.body.errors %}<div class="notes-field-error">{{ error }}</div>{% endfor %}
+        </div>
+
+        <div class="acts" style="justify-content:flex-end;gap:8px">
+          <a class="btn" href="{% url 'church:notes' %}">Cancel</a>
+          <button class="btn p" type="submit"><span data-i="check"></span>{% if object %} Save changes{% else %} Save note{% endif %}</button>
+        </div>
+      </section>
+
+      <aside>
+        <div class="card notes-side-card">
+          <h2>Note details</h2>
+          <p>Organise this note so it is easier to find later.</p>
+
+          <div class="notes-field">
+            <label for="{{ form.category.id_for_label }}">Category</label>
+            {{ form.category }}
+            {% for error in form.category.errors %}<div class="notes-field-error">{{ error }}</div>{% endfor %}
+          </div>
+
+          <div class="notes-field">
+            <label for="{{ form.scripture.id_for_label }}">Scripture reference</label>
+            {{ form.scripture }}
+            {% for error in form.scripture.errors %}<div class="notes-field-error">{{ error }}</div>{% endfor %}
+          </div>
+
+          <div class="notes-field">
+            <div class="notes-check">
+              {{ form.is_pinned }}
+              <label for="{{ form.is_pinned.id_for_label }}">Pin this note to the top</label>
+            </div>
+            {% for error in form.is_pinned.errors %}<div class="notes-field-error">{{ error }}</div>{% endfor %}
+          </div>
+        </div>
+
+        <div class="card notes-side-card" style="margin-top:14px">
+          <h2>Writing tip</h2>
+          <p>Use a clear title and add a scripture reference when it helps you revisit the message or reflection later.</p>
+        </div>
+      </aside>
+    </div>
+  </form>
+</div>
+{% endblock %}

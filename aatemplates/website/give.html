@@ -1,0 +1,7 @@
+{% extends "website/base.html" %}{% load static %}
+{% block title %}Give · KP Global{% endblock %}
+{% block description %}Give to KP Global church.{% endblock %}
+{% block content %}<section class="phero dk"><div class="wrap"><div class="crumbs"><a href="{% url 'core:home' %}">Home</a><span>/</span><span>Give</span></div><h1>Give</h1><p class="lead">Your generosity funds ministry, outreach and care for people in our community. Thank you.</p></div></section>
+<section class="sec"><div class="wrap two"><div class="panel" id="give"><h3>How to give</h3>{% if site_settings.give_instructions %}<div class="prose">{{ site_settings.give_instructions|linebreaks }}</div>{% else %}<p class="muted">Giving instructions will be published here soon. Please contact the church office to give in the meantime.</p>{% endif %}<p class="muted" style="font-size:14px">Online card payments are not enabled yet.</p></div>
+<aside>
+<div class="prose" style="margin-top:28px;font-size:1rem"><h3>Why we give</h3><p>Giving is an act of worship and trust. Gifts support Sunday services, children’s and youth ministry, community outreach and the building of our church home.</p><p class="muted" style="font-size:14.5px">Gifts are used as described. Questions? <a href="{% url 'core:contact' %}">Contact us</a>.</p></div></aside></div></section>{% endblock %}

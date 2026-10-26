@@ -1,0 +1,6 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Prayer Requests{% endblock %}{% block crumb %}Prayer Requests{% endblock %}
+{% block content %}<div class="ph"><div><h1>Prayer Requests</h1><div class="sub">Review requests from members and assign them to the prayer team</div></div></div>
+<div class="kan">{% for title, cls, key, count, items in columns %}<div class="col {{ cls }}"><h2><i></i>{{ title }} <em>{{ count }}</em></h2>
+{% for p in items %}<div class="card kc"><b><a href="{% url 'church:prayer_detail' p.pk %}">{{ p.title }}</a></b><div class="meta"><div class="av sm c{{ forloop.counter0|divisibleby:2|yesno:'0,1' }}">{{ p.author_name|slice:":2"|upper }}</div><span>{{ p.author_name }}</span><span data-i="{% if p.is_public %}globe{% else %}lock{% endif %}"></span><span>{% if p.is_public %}Public{% else %}Private{% endif %}</span></div><div class="ft"><span>{{ p.created_at|timesince }} ago{% if p.assigned_to %} · {{ p.assigned_to.display_name }}{% endif %}</span><a class="btn s" href="{% url 'church:prayer_detail' p.pk %}">{% if key == 'pending' %}Assign{% else %}Open{% endif %}</a></div></div>{% empty %}<p class="s">None.</p>{% endfor %}
+{% if count > 8 %}<span class="more">{{ count|add:"-8" }} more</span>{% endif %}</div>{% endfor %}</div>{% endblock %}

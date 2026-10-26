@@ -1,0 +1,33 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Delete note{% endblock %}
+{% block crumb %}<a href="{% url 'church:notes' %}">My Notes</a> / Delete{% endblock %}
+
+{% block extra_head %}
+  {{ block.super }}
+  {% include "dashboard/notes/_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="notes-page">
+  <a class="back" href="{% url 'church:notes' %}"><span data-i="back"></span>Back to notes</a>
+  <div class="notes-hero" style="margin-top:14px">
+    <div>
+      <h1>Delete note</h1>
+      <div class="sub">Remove this note from your personal workspace.</div>
+    </div>
+  </div>
+
+  <div class="card notes-form-card notes-danger">
+    <h2>{{ object.title|default:"Untitled note" }}</h2>
+    <p>Are you sure you want to delete this note? This action cannot be undone.</p>
+    {% if object.scripture %}<p class="s">Scripture: {{ object.scripture }}</p>{% endif %}
+    <form method="post">
+      {% csrf_token %}
+      <div class="acts" style="gap:8px;justify-content:flex-end">
+        <a class="btn" href="{% url 'church:notes' %}">Keep note</a>
+        <button class="btn d" type="submit"><span data-i="trash"></span> Delete note</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

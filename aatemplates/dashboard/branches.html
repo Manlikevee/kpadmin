@@ -1,0 +1,24 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Branches{% endblock %}{% block crumb %}Branches{% endblock %}
+{% block content %}<div class="ph"><div><h1>Branch Management</h1><div class="sub">Create and manage KP Global branches, their locations and who leads them.</div></div>
+<div class="acts"><button class="btn p" type="button" id="addBtn"><span data-i="plus"></span>Add New Branch</button></div></div>
+<div class="stats s3"><div class="card st"><div class="h"><span class="chip" data-i="branch"></span>Total branches</div><div class="n">{{ total }}</div></div><div class="card st"><div class="h"><span class="chip" data-i="check"></span>Active</div><div class="n">{{ active }}</div></div><div class="card st"><div class="h"><span class="chip" data-i="members"></span>Total members</div><div class="n">{{ total_members }}</div></div></div>
+<div class="toolbar" style="margin-top:14px"><div class="seg" data-target="#bt" role="group"><button class="on" data-f="all">All</button><button data-f="active">Active</button><button data-f="inactive">Inactive</button></div><input class="q" placeholder="Search name or location…" aria-label="Search branches"></div>
+<div class="card" id="bt" data-scope><div class="scroll"><table class="tbl rt"><thead><tr><th>Branch name</th><th>Location</th><th>Branch administrator</th><th>Contact</th><th>Status</th><th class="end">Actions</th></tr></thead><tbody>
+{% for b in branches %}<tr data-s="{% if b.is_active %}active{% else %}inactive{% endif %}"><td class="pri"><div class="who"><div class="av c{{ forloop.counter0|divisibleby:2|yesno:'0,1' }}">{{ b.name|slice:":2"|upper }}</div><div><a class="lnk" href="{% url 'church:branch_detail' b.pk %}">{{ b.name }}</a><small>{{ b.member_total }} members · {{ b.worker_total }} workers</small></div></div></td>
+<td>{{ b.address }}{% if b.city %}{% if b.address %}, {% endif %}{{ b.city }}{% endif %}</td><td>{% for a in b.admins.all %}{{ a.display_name }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="tag w">Unassigned</span>{% endfor %}</td><td>{{ b.phone }}<small>{{ b.email }}</small></td>
+<td><span class="tag {% if b.is_active %}ok{% else %}mute{% endif %}">{% if b.is_active %}Active{% else %}Inactive{% endif %}</span></td>
+<td class="end"><a class="ib sm" href="{% url 'church:branch_detail' b.pk %}" aria-label="Open dashboard" title="Open dashboard"><span data-i="eye"></span></a><button class="ib sm editBranch" type="button" aria-label="Edit {{ b.name }}" title="Edit" data-action="{% url 'church:branch_edit' b.pk %}" data-name="{{ b.name }}" data-address="{{ b.address }}" data-city="{{ b.city }}" data-country="{{ b.country }}" data-phone="{{ b.phone }}" data-email="{{ b.email }}" data-service_times="{{ b.service_times }}" data-description="{{ b.description }}" data-is_active="{{ b.is_active|yesno:'1,0' }}" data-admins="{% for a in b.admins.all %}{{ a.pk }}{% if not forloop.last %},{% endif %}{% endfor %}"><span data-i="edit"></span></button></td></tr>
+{% empty %}<tr><td colspan="6"><div class="empty"><b>No branches yet</b>Add the first one with the button above.</div></td></tr>{% endfor %}</tbody></table></div></div>
+<dialog id="bd" class="md" data-modal aria-labelledby="bdT"><form id="bf" method="post" action="{% url 'church:branch_create' %}">{% csrf_token %}
+<div class="dh2"><div><h2 id="bdT">Add new branch</h2><p>Add a branch and choose who leads it.</p></div><button class="ib sm" type="button" data-close aria-label="Close"><span data-i="x"></span></button></div>
+<div class="f wide">{% for field in form %}{% include "dashboard/_field.html" %}{% endfor %}</div>
+<div class="acts"><button class="btn" type="button" data-close>Cancel</button><button class="btn p" type="submit">Save branch</button></div></form></dialog>{% endblock %}
+{% block extra_js %}<script>
+(function(){var d=document.getElementById('bd'),f=document.getElementById('bf'),createUrl=f.action,T=document.getElementById('bdT');
+function reset(){f.reset();f.action=createUrl;T.textContent='Add new branch'}
+document.getElementById('addBtn').onclick=function(){reset();d.showModal()};
+document.querySelectorAll('.editBranch').forEach(function(b){b.onclick=function(){reset();f.action=b.dataset.action;T.textContent='Edit branch';
+['name','address','city','country','phone','email','service_times','description'].forEach(function(k){var el=f.elements[k];if(el)el.value=b.dataset[k]||''});
+f.elements.is_active.checked=b.dataset.is_active==='1';var ids=(b.dataset.admins||'').split(',');Array.prototype.forEach.call(f.elements.admins.options,function(o){o.selected=ids.indexOf(o.value)>-1});d.showModal()}});})();
+</script>{% endblock %}

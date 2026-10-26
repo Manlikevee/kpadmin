@@ -1,0 +1,112 @@
+
+{% extends "dashboard/base.html" %}
+
+{% block title %}My Notes{% endblock %}
+{% block crumb %}My Notes{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1>My notes</h1>
+    <div class="sub">
+      {{ total_notes }} {% if total_notes == 1 %}note{% else %}notes{% endif %}
+      · Keep your sermons, devotions and personal reflections together.
+    </div>
+  </div>
+  <a class="btn p" href="{% url 'church:note-create' %}">
+    + New note
+  </a>
+</div>
+
+<div class="card">
+  <form method="get" class="fgrid">
+    <div class="f wide">
+      <label for="q">Search your notes</label>
+      <input
+        type="search"
+        id="q"
+        name="q"
+        value="{{ search_query }}"
+        placeholder="Search title, content or scripture..."
+      >
+    </div>
+
+    <div class="f">
+      <label for="category">Category</label>
+      <select id="category" name="category">
+        <option value="">All categories</option>
+        {% for value, label in categories %}
+          <option value="{{ value }}"
+            {% if selected_category == value %}selected{% endif %}>
+            {{ label }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="acts" style="display:flex;gap:8px">
+      <button class="btn p" type="submit">Search</button>
+      <a class="btn" href="{% url 'church:notes' %}">Clear</a>
+    </div>
+  </form>
+</div>
+
+<div class="card" style="margin-top:16px">
+  {% for note in notes %}
+    <div class="row">
+      <div class="t" style="flex:1;min-width:0">
+        <b>
+          {{ note.title|default:"Untitled note" }}
+          {% if note.is_pinned %}
+            <span class="tag br">Pinned</span>
+          {% endif %}
+        </b>
+
+        <span>
+          {{ note.get_category_display }}
+          {% if note.scripture %} · {{ note.scripture }}{% endif %}
+        </span>
+
+        <span>{{ note.updated_at|date:"j M Y, g:i A" }}</span>
+
+        {% if note.body %}
+          <p>{{ note.body|striptags|truncatechars:180 }}</p>
+        {% endif %}
+
+        <div class="acts" style="display:flex;gap:8px;margin-top:8px">
+          <a class="btn"
+             href="{% url 'church:note-update' note.pk %}">
+            Edit
+          </a>
+          <a class="btn"
+             href="{% url 'church:note-delete' note.pk %}">
+            Delete
+          </a>
+        </div>
+      </div>
+    </div>
+  {% empty %}
+    <div class="empty">
+      <b>
+        {% if search_query or selected_category %}
+          No matching notes
+        {% else %}
+          Capture what God is saying
+        {% endif %}
+      </b>
+      <p class="s">
+        {% if search_query or selected_category %}
+          Try another search term or category.
+        {% else %}
+          Take notes during sermons, devotions and prayer.
+        {% endif %}
+      </p>
+      {% if not search_query and not selected_category %}
+        <a class="btn p" href="{% url 'church:note-create' %}">
+          Write your first note
+        </a>
+      {% endif %}
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

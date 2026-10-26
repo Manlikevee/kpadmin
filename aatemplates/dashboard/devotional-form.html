@@ -1,0 +1,6 @@
+{% extends "dashboard/base.html" %}{% load static %}
+{% block title %}New devotional{% endblock %}
+{% block crumb %}New devotional{% endblock %}
+{% block content %}<a class="back" href="{% url 'church:devotionals' %}"><span data-i="back"></span>Bible & Devotionals</a>
+<div class="ph"><div><h1>{% if object %}Edit devotional{% else %}New devotional{% endif %}</h1><div class="sub">{% if object %}Update the details below, then save your changes.{% else %}Fill in the details below. You can edit this later.{% endif %}</div></div></div>
+{% include "dashboard/_form_body.html" %}{% endblock %}

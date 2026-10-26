@@ -1,0 +1,6 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Worker dashboard{% endblock %}{% block crumb %}Worker dashboard{% endblock %}
+{% block content %}<div class="welcome" id="top"><div><h1>Welcome, {{ user.first_name|default:user.display_name }}</h1><p>Thank you for serving. Here’s what’s happening in your church family.</p></div></div>
+<div class="card" style="margin-bottom:14px"><h2>My assignments</h2>{% for a in assignments %}<div class="row"><span class="chip" data-i="worker"></span><div class="t"><b>{{ a.ministry.name|default:"General service" }}</b><span>{{ a.branch.name }}{% if a.title %} · {{ a.title }}{% endif %}</span></div><span class="tag ok">Active</span></div>{% empty %}<p class="s">You have no active assignments yet.</p>{% endfor %}</div>
+{% include "dashboard/_portal_sections.html" %}
+<div class="card" id="profile" style="margin-top:14px"><div class="bar"><h2>My profile</h2><a class="btn s" href="{% url 'accounts:profile' %}">Edit profile</a></div><dl class="kv"><dt>Name</dt><dd>{{ user.display_name }}</dd><dt>Email</dt><dd>{{ user.email }}</dd><dt>Phone</dt><dd>{{ user.profile.phone|default:"—" }}</dd></dl></div>{% endblock %}

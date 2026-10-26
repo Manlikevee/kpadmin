@@ -1,0 +1,24 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Dashboard{% endblock %} · KP Global</title>
+<link rel="icon" href="{% static 'dashboard/favicon.png' %}">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'dashboard/style.css' %}">
+<script>try{var t=localStorage.getItem('kp-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+{% block extra_head %}{% endblock %}</head>
+<body data-page="{{ page_id }}"><div class="app" id="app">
+<aside class="side" id="side" aria-label="Sidebar"><div class="sb">
+<div class="brand"><img class="logo" src="{% static 'dashboard/logo.png' %}" alt="KP Global logo"><span>KP Global<small>{{ dash_sub }}</small></span><button class="sq" id="collapse" type="button" aria-controls="side"></button></div>
+{% if dash_role == "super" or dash_role == "branch" %}<label class="search"><svg class="i" data-ic="search" viewBox="0 0 24 24"></svg><input id="sq" placeholder="Search…" aria-label="Search sections"><kbd>/</kbd></label>{% endif %}
+<nav id="nav" aria-label="Main">{% for title, items in dash_groups %}<div class="grp">{{ title }}</div>{% for url, label, icon, badge, pid in items %}<a class="nav{% if pid == page_id %} on{% endif %}" href="{% url url %}" title="{{ label }}"{% if pid == page_id %} aria-current="page"{% endif %}><svg class="i" data-ic="{{ icon }}" viewBox="0 0 24 24"></svg><span>{{ label }}</span>{% if badge %}<em class="b">{{ badge }}</em>{% endif %}</a>{% endfor %}{% endfor %}</nav>
+<div class="foot"><div class="av">{{ user.initials }}</div><div><b>{{ user.display_name }}</b><span>{{ dash_role_label }}</span></div>
+<form method="post" action="{% url 'accounts:logout' %}" class="outf">{% csrf_token %}<button class="out" type="submit" aria-label="Log out" title="Log out"><svg class="i" data-ic="out" viewBox="0 0 24 24"></svg></button></form></div>
+</div></aside><div class="scrim" id="scrim"></div>
+<main class="main"><div class="top"><button class="ib ham" id="ham" type="button" aria-label="Toggle menu" aria-controls="side"></button>
+<div class="crumb"><a href="{% url 'church:home' %}">KP Global</a> / <b>{% block crumb %}{% endblock %}</b></div>
+<div class="tools"><a class="ib" href="{% url 'core:home' %}" aria-label="View website" title="View website"><span data-i="globe"></span></a><a class="ib" href="{% url 'church:my_notifications' %}" aria-label="Notifications" title="My notifications"><span data-i="notify"></span>{% if dash_unread %}<span class="dot"></span>{% endif %}</a><button class="ib" id="theme" type="button"></button></div></div>
+<div class="stage">{% if messages %}{% for m in messages %}<div class="flash {{ m.tags }}" role="status">{{ m }}</div>{% endfor %}{% endif %}{% block content %}{% endblock %}</div>
+</main></div>
+<script src="{% static 'dashboard/app.js' %}"></script>{% block extra_js %}{% endblock %}
+</body></html>

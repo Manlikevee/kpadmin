@@ -1,0 +1,12 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Notifications{% endblock %}{% block crumb %}Notifications{% endblock %}
+{% block content %}<div class="ph"><div><h1>Notifications</h1><div class="sub">Send notifications to members and workers</div></div></div>
+<div class="two"><div class="card"><h2>New notification</h2><p class="s">Recipients see it in their portal inbox.</p>
+<form class="f wide" method="post" novalidate>{% csrf_token %}{{ form.non_field_errors }}
+<label>Title<input id="nt" name="title" maxlength="80" placeholder="Sunday service reminder" required value="{{ form.title.value|default:'' }}">{% for e in form.title.errors %}<small class="err">{{ e }}</small>{% endfor %}</label>
+<label>Message<textarea id="nm" name="message" rows="3" maxlength="140" placeholder="Doors open at 8:30 AM. See you there!" required>{{ form.message.value|default:'' }}</textarea><small id="cnt">0/140</small>{% for e in form.message.errors %}<small class="err">{{ e }}</small>{% endfor %}</label>
+<div class="cols"><label>Send to{{ form.audience }}</label><label>Branch{{ form.branch }}{% for e in form.branch.errors %}<small class="err">{{ e }}</small>{% endfor %}</label></div>
+<label>Send at (leave empty to send now){{ form.send_at }}</label>
+<button class="btn p" type="submit" style="justify-self:start">Send notification</button></form></div>
+<div style="display:grid;gap:14px"><div class="card"><h2>Preview</h2><div class="phone"><div><b id="pt"></b><span id="pm"></span></div></div></div>
+<div class="card"><h2>History</h2>{% for n in history %}<div class="row"><div class="t"><b>{{ n.title }}</b><span>{% if n.branch %}{{ n.branch.name }}{% else %}{{ n.get_audience_display }}{% endif %}, {{ n.send_at|date:"j M, H:i" }}</span></div><span class="tag {% if n.is_sent %}ok{% else %}w{% endif %}">{% if n.is_sent %}Sent{% else %}Scheduled{% endif %}</span></div>{% empty %}<p class="s">Nothing sent yet.</p>{% endfor %}</div></div></div>{% endblock %}

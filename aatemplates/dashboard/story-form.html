@@ -1,0 +1,6 @@
+{% extends "dashboard/base.html" %}{% load static %}
+{% block title %}New story{% endblock %}
+{% block crumb %}New story{% endblock %}
+{% block content %}<a class="back" href="{% url 'church:stories' %}"><span data-i="back"></span>Stories</a>
+<div class="ph"><div><h1>{% if object %}Edit story{% else %}New story{% endif %}</h1><div class="sub">{% if object %}Update the details below, then save your changes.{% else %}Fill in the details below. You can edit this later.{% endif %}</div></div></div>
+{% include "dashboard/_form_body.html" %}{% endblock %}

@@ -1,0 +1,6 @@
+{% extends "dashboard/base.html" %}{% load static %}
+{% block title %}Add sermon{% endblock %}
+{% block crumb %}Add sermon{% endblock %}
+{% block content %}<a class="back" href="{% url 'sermons_admin:list' %}"><span data-i="back"></span>Sermons & Media</a>
+<div class="ph"><div><h1>{% if object %}Edit sermon{% else %}Add sermon{% endif %}</h1><div class="sub">{% if object %}Update the details below, then save your changes.{% else %}Fill in the details below. You can edit this later.{% endif %}</div></div></div>
+{% include "dashboard/_form_body.html" %}{% endblock %}

@@ -1,0 +1,9 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Sermons & Media{% endblock %}{% block crumb %}Sermons & Media{% endblock %}
+{% block content %}<div class="ph"><div><h1>Sermons & Media</h1><div class="sub">Sermons are pulled from the church YouTube channel and cached. Add speaker, series and visibility details here.</div></div>
+<div class="acts"><form class="inline-form" method="post" action="{% url 'sermons_admin:refresh' %}">{% csrf_token %}<button class="btn" type="submit"><span data-i="refresh"></span>Refresh from YouTube</button></form></div></div>
+{% if page.error %}<div class="flash error">YouTube is not reachable right now ({{ page.error }}). Showing cached data where available.</div>{% elif page.stale %}<div class="flash">Showing cached data; YouTube could not be reached just now.</div>{% endif %}
+<div class="toolbar"><input class="q" placeholder="Search sermons…" aria-label="Search sermons"></div>
+<div class="cards3">{% for v in sermons %}<a class="card media" href="{% url 'sermons_admin:detail' v.video_id %}" data-item><div class="thumb t0" style="{% if v.thumbnail %}background-image:url('{{ v.thumbnail }}');background-size:cover{% endif %}"><span class="kind">{% if v.is_live %}LIVE{% else %}Video{% endif %}</span><span class="play"><span data-i="play"></span></span>{% if v.duration %}<span class="dur">{{ v.duration }}</span>{% endif %}</div><b>{{ v.title }}</b><div class="m"><span>{{ v.note.speaker|default:"—" }}</span><span class="tag {% if v.note.is_hidden %}w{% else %}ok{% endif %}">{% if v.note.is_hidden %}Hidden{% else %}Visible{% endif %}</span></div><div class="m"><span>{{ v.view_count }} views</span></div></a>
+{% empty %}<div class="card"><div class="empty"><b>No sermons to show</b>Set YOUTUBE_API_KEY to load the channel.</div></div>{% endfor %}</div>
+{% if page.next_page_token %}<p style="margin-top:14px"><a class="btn" href="?page_token={{ page.next_page_token }}">Next page →</a></p>{% endif %}{% endblock %}

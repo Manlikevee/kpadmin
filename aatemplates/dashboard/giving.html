@@ -1,0 +1,6 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Giving & Offerings{% endblock %}{% block crumb %}Giving{% endblock %}
+{% block content %}<div class="ph"><div><h1>Giving & Offerings</h1><div class="sub">Recorded offerings, tithes and donations</div></div><div class="acts"><a class="btn p" href="{% url 'church:giving_create' %}"><span data-i="plus"></span>Record gift</a></div></div>
+<div class="two"><div class="card"><h2>This month</h2><p class="s">{{ month_count }} recorded gift{{ month_count|pluralize }}</p><div class="big">{{ month_total|floatformat:"0g" }}</div>
+{% for f in by_fund %}<div class="cat"><div class="l"><b>{{ f.label }}</b><span>{{ f.total|floatformat:"0g" }} · {{ f.pct }}%</span></div><div class="track"><i style="width:{{ f.pct }}%"></i></div></div>{% endfor %}</div>
+<div class="card"><h2>Recent</h2><p class="s">Latest recorded gifts</p>{% for r in records %}<div class="row"><div class="av c{{ forloop.counter0|divisibleby:2|yesno:'0,1' }}">{{ r.giver|slice:":2"|upper }}</div><div class="t"><b>{{ r.giver }}</b><span>{{ r.get_fund_display }}, {{ r.given_on|date:"j M" }}</span></div><b>{{ r.amount|floatformat:"0g" }}</b><a class="ib sm" href="{% url 'church:giving_edit' r.pk %}" aria-label="Edit"><span data-i="edit"></span></a></div>{% empty %}<p class="s">No gifts recorded yet.</p>{% endfor %}</div></div>{% endblock %}

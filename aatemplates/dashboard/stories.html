@@ -1,0 +1,4 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Stories{% endblock %}{% block crumb %}Stories{% endblock %}
+{% block content %}<div class="ph"><div><h1>Stories</h1><div class="sub">Short image and video stories that disappear after 24 hours</div></div></div>
+<div class="stories"><a class="story new" href="{% url 'church:story_create' %}"><span data-i="plus"></span> New story</a>{% for s in stories %}<a class="story t{{ forloop.counter0|divisibleby:3|yesno:'0,1' }}" href="{% url 'church:story_edit' s.pk %}" data-item><div class="ring"><i style="width:{% if s.is_live %}60{% else %}0{% endif %}%"></i></div><div><b>{{ s.title }}</b><span>{% if s.is_video %}Video{% else %}Image{% endif %}</span><br><span>{% if s.is_live %}Live until {{ s.expires_at|date:"j M, g:i A" }}{% elif s.is_published %}Expired{% else %}Draft · Not posted{% endif %}</span></div></a>{% endfor %}</div>{% endblock %}
