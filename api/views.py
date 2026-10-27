@@ -309,38 +309,45 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         serializer.save(author=self.request.user)
 
 
-class DevotionalViewSet(
-    mixins.ListModelMixin,
-    mixins.RetrieveModelMixin,
-    mixins.CreateModelMixin,
-    viewsets.GenericViewSet,
-):
+class DevotionalViewSet(viewsets.ModelViewSet):
     serializer_class = s.DevotionalSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated, ReadAnyWriteStaff]
     pagination_class = StandardPagination
     filterset_fields = ("date",)
     search_fields = ("title", "scripture_ref")
 
-    def get_permissions(self):
-        # Anyone can read published devotionals.
-        # Only staff users can create or bulk-create them.
-        if self.action in ("create", "bulk_create"):
-            return [permissions.IsAdminUser()]
-
-        return [permissions.AllowAny()]
-
     def get_queryset(self):
-        return Devotional.objects.filter(
+        qs = Devotional.objects.all()
+        u = self.request.user
+
+        # Staff can manage devotionals, including future and unpublished ones.
+        if u.is_staff_role:
+            return qs
+
+        # Other authenticated users can only see published devotionals
+        # dated today or earlier.
+        return qs.filter(
             is_published=True,
             date__lte=timezone.localdate(),
         )
 
+    def perform_create(self, serializer):
+        serializer.save()
+
     @action(detail=False, methods=["get"])
     def today(self, request):
-        obj = self.get_queryset().order_by("-date").first()
+        obj = (
+            self.get_queryset()
+            .filter(
+                is_published=True,
+                date__lte=timezone.localdate(),
+            )
+            .order_by("-date")
+            .first()
+        )
 
         if not obj:
-            raise Http404("No devotional available for today.")
+            raise Http404("No devotional available.")
 
         return Response(self.get_serializer(obj).data)
 
@@ -348,12 +355,7 @@ class DevotionalViewSet(
     def bulk_create(self, request):
         if not isinstance(request.data, list):
             return Response(
-                {
-                    "detail": (
-                        "Expected a JSON array containing "
-                        "multiple devotionals."
-                    )
-                },
+                {"detail": "Expected a JSON array of devotionals."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -363,11 +365,7 @@ class DevotionalViewSet(
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        serializer = self.get_serializer(
-            data=request.data,
-            many=True,
-        )
-
+        serializer = self.get_serializer(data=request.data, many=True)
         serializer.is_valid(raise_exception=True)
 
         with transaction.atomic():
@@ -384,7 +382,6 @@ class DevotionalViewSet(
             },
             status=status.HTTP_201_CREATED,
         )
-
 
 class NotificationViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     serializer_class = s.NotificationSerializer
