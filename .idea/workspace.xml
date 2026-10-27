@@ -5,7 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="53a4340c-028d-4f9f-9eeb-2085bf816e33" name="Changes" comment="vee">
-      <change beforePath="$PROJECT_DIR$/church/context_processors.py" beforeDir="false" afterPath="$PROJECT_DIR$/church/context_processors.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/push_notifications/services.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/push_notifications/urls.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/api/urls.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/kingsportal/settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/kingsportal/settings.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -15,8 +18,8 @@
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
       <list>
-        <option value="Python Script" />
         <option value="HTML File" />
+        <option value="Python Script" />
       </list>
     </option>
   </component>
@@ -136,7 +139,15 @@
       <option name="project" value="LOCAL" />
       <updated>1793052416259</updated>
     </task>
-    <option name="localTasksCounter" value="9" />
+    <task id="LOCAL-00009" summary="vee">
+      <option name="closed" value="true" />
+      <created>1793053177139</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1793053177139</updated>
+    </task>
+    <option name="localTasksCounter" value="10" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">

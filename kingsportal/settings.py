@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     "sermons.apps.SermonsConfig",
     "bible.apps.BibleConfig",
     "api.apps.ApiConfig",
+    'push_notifications',
     # must be last: deletes files of removed/replaced FileFields
     "django_cleanup.apps.CleanupConfig",
 ]

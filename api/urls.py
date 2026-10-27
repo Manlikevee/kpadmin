@@ -2,6 +2,7 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
+from push_notifications.views import RegisterPushTokenView
 from . import views
 from .views import NoteViewSet
 
@@ -17,7 +18,11 @@ router.register("notifications", views.NotificationViewSet, basename="notificati
 router.register("prayer-requests", views.PrayerRequestViewSet, basename="prayer-request")
 router.register("stories", views.StoryViewSet, basename="story")
 router.register("notes", NoteViewSet, basename="note")
-
+path(
+    "push-tokens/register/",
+    RegisterPushTokenView.as_view(),
+    name="api-register-push-token",
+),
 urlpatterns = [
     path("", views.ApiRoot.as_view(), name="api-root"),
     path("auth/register/", views.RegisterView.as_view(), name="api-register"),
