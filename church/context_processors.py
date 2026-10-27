@@ -35,7 +35,13 @@ def dashboard_nav(request):
             (
                 "Overview",
                 [
-                    ("church:dashboard", "Dashboard", "dashboard", None, "dashboard"),
+                    (
+                        "church:dashboard",
+                        "Dashboard",
+                        "dashboard",
+                        None,
+                        "dashboard",
+                    ),
                 ],
             ),
             (
@@ -51,7 +57,13 @@ def dashboard_nav(request):
                         None,
                         "ministries",
                     ),
-                    ("church:events", "Events & Services", "events", None, "events"),
+                    (
+                        "church:events",
+                        "Events & Services",
+                        "events",
+                        None,
+                        "events",
+                    ),
                     (
                         "church:prayer_requests",
                         "Prayer Requests",
@@ -59,7 +71,13 @@ def dashboard_nav(request):
                         pending_prayers or None,
                         "prayer-requests",
                     ),
-                    ("church:giving", "Giving & Offerings", "giving", None, "giving"),
+                    (
+                        "church:giving",
+                        "Giving & Offerings",
+                        "giving",
+                        None,
+                        "giving",
+                    ),
                 ],
             ),
             (
@@ -72,7 +90,13 @@ def dashboard_nav(request):
                         None,
                         "bible-devotionals",
                     ),
-                    ("bible:list", "Bible Management", "file", None, "bible-management"),
+                    (
+                        "bible:list",
+                        "Bible Management",
+                        "file",
+                        None,
+                        "bible-management",
+                    ),
                     (
                         "sermons_admin:list",
                         "Sermons & Media",
@@ -87,7 +111,13 @@ def dashboard_nav(request):
                         pending_praise or None,
                         "praise-reports",
                     ),
-                    ("church:stories", "Stories", "stories", None, "stories"),
+                    (
+                        "church:stories",
+                        "Stories",
+                        "stories",
+                        None,
+                        "stories",
+                    ),
                     (
                         "church:announcements",
                         "Announcements",
@@ -108,7 +138,20 @@ def dashboard_nav(request):
                         None,
                         "notifications",
                     ),
-                    ("church:settings", "Settings", "settings", None, "settings"),
+                    (
+                        "church:push-notification-admin",
+                        "Push Notifications",
+                        "notify",
+                        None,
+                        "push-notifications",
+                    ),
+                    (
+                        "church:settings",
+                        "Settings",
+                        "settings",
+                        None,
+                        "settings",
+                    ),
                 ],
             ),
         ]
@@ -204,7 +247,13 @@ def dashboard_nav(request):
                         "my-notifications",
                     ),
                     notes_link,
-                    ("accounts:profile", "My Profile", "user", None, "profile"),
+                    (
+                        "accounts:profile",
+                        "My Profile",
+                        "user",
+                        None,
+                        "profile",
+                    ),
                 ],
             ),
         ]
@@ -245,7 +294,13 @@ def dashboard_nav(request):
                         None,
                         "apply-worker",
                     ),
-                    ("accounts:profile", "My Profile", "user", None, "profile"),
+                    (
+                        "accounts:profile",
+                        "My Profile",
+                        "user",
+                        None,
+                        "profile",
+                    ),
                 ],
             ),
         ]

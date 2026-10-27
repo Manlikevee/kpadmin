@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 
 from accounts.access import branches_for
+from push_notifications.models import DevicePushToken
 
 from .models import (Announcement, Branch, Devotional, Event, GivingRecord, Member, Ministry,
                      Notification, PraiseReport, Story, WorkerApplication, WorkerAssignment, Note)
@@ -290,3 +291,75 @@ class NoteForm(forms.ModelForm):
         }
 
 
+class PushNotificationForm(forms.Form):
+    TARGET_CHOICES = (
+        ("all", "All registered users"),
+        ("selected", "Selected users"),
+    )
+
+    title = forms.CharField(
+        max_length=100,
+        strip=True,
+        widget=forms.TextInput(
+            attrs={
+                "placeholder": "Sunday service reminder",
+                "autocomplete": "off",
+            }
+        ),
+    )
+
+    message = forms.CharField(
+        max_length=500,
+        strip=True,
+        widget=forms.Textarea(
+            attrs={
+                "rows": 4,
+                "placeholder": "Write your notification message...",
+            }
+        ),
+    )
+
+    target = forms.ChoiceField(
+        choices=TARGET_CHOICES,
+        initial="selected",
+        widget=forms.RadioSelect,
+    )
+
+    users = forms.ModelMultipleChoiceField(
+        queryset=User.objects.none(),
+        required=False,
+        widget=forms.SelectMultiple(
+            attrs={"size": "8"}
+        ),
+        help_text="Select one or more users. Hold Ctrl or Command to select multiple users.",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        registered_user_ids = (
+            DevicePushToken.objects
+            .order_by()
+            .values_list("user_id", flat=True)
+            .distinct()
+        )
+
+        self.fields["users"].queryset = (
+            User.objects
+            .filter(pk__in=registered_user_ids)
+            .order_by("username", "email")
+        )
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        target = cleaned_data.get("target")
+        users = cleaned_data.get("users")
+
+        if target == "selected" and not users:
+            self.add_error(
+                "users",
+                "Select at least one registered user, or choose all registered users.",
+            )
+
+        return cleaned_data

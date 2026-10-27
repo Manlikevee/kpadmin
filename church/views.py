@@ -2,6 +2,7 @@ from collections import OrderedDict
 from datetime import timedelta
 
 from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -12,7 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views import View
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_http_methods
 from django.views.generic import CreateView, UpdateView, DeleteView, ListView
 
 from accounts.access import branches_for, can_manage_branch, member_branch_ids, scope_to_branches
@@ -20,11 +21,13 @@ from accounts.mixins import (RoleRequiredMixin, StaffRequiredMixin, SuperAdminRe
                              WorkerRequiredMixin)
 from core.models import SiteSettings
 from core.forms import SiteSettingsForm
+from push_notifications.models import DevicePushToken
+from push_notifications.services import send_push_to_user
 from sermons.youtube import get_service
 
 from . import forms, services
 from .crud import ManagedDeleteView, ManagedDetailView, ManagedFormView, ManagedListView
-from .forms import NoteForm
+from .forms import NoteForm, PushNotificationForm
 from .models import (Announcement, Branch, Devotional, Event, GivingRecord, Member, Ministry,
                      Notification, PraiseReport, PrayerRequest, Story, WorkerApplication,
                      WorkerAssignment, Note)
@@ -790,3 +793,198 @@ class NoteDeleteView(LoginRequiredMixin, DeleteView):
 
     def get_queryset(self):
         return Note.objects.filter(user=self.request.user)
+
+
+
+@staff_member_required(login_url="/admin/login/")
+@require_http_methods(["GET", "POST"])
+def push_notification_admin(request):
+    """
+    Staff dashboard for sending push notifications to:
+    - All users with registered push tokens
+    - One or more selected registered users
+    """
+
+    if request.method == "POST":
+        form = PushNotificationForm(request.POST)
+
+        if form.is_valid():
+            title = form.cleaned_data["title"]
+            message = form.cleaned_data["message"]
+            target = form.cleaned_data["target"]
+
+            if target == "all":
+                recipient_ids = (
+                    DevicePushToken.objects
+                    .order_by()
+                    .values_list("user_id", flat=True)
+                    .distinct()
+                )
+                recipients = User.objects.filter(
+                    pk__in=recipient_ids
+                ).order_by("pk")
+            else:
+                selected_users = form.cleaned_data["users"]
+                recipients = selected_users.order_by("pk")
+
+            sent_to_users = 0
+            attempted_devices = 0
+            failed_requests = 0
+            errors = []
+
+            # Get each user's registered device count before sending.
+            for recipient in recipients.iterator():
+                device_count = DevicePushToken.objects.filter(
+                    user_id=recipient.pk
+                ).count()
+
+                if not device_count:
+                    continue
+
+                try:
+                    results = send_push_to_user(
+                        user=recipient,
+                        title=title,
+                        message=message,
+                        data={
+                            "route": "/notifications",
+                        },
+                    )
+
+                    # Assumes the service returns one result per attempted
+                    # device, as in the existing service implementation.
+                    if results is None:
+                        results = []
+
+                    if isinstance(results, dict):
+                        results = [results]
+
+                    results = list(results)
+                    attempted_devices += max(
+                        device_count,
+                        len(results),
+                    )
+
+                    failed = sum(
+                        1
+                        for result in results
+                        if isinstance(result, dict)
+                        and (
+                            "error" in result
+                            or result.get("status") == "error"
+                        )
+                    )
+                    failed_requests += failed
+
+                    if failed < len(results):
+                        sent_to_users += 1
+
+                except Exception:
+                    # Keep sending to other users if one send fails.
+                    errors.append(
+                        f"Could not submit notification for user #{recipient.pk}."
+                    )
+
+            if errors:
+                messages.warning(
+                    request,
+                    (
+                        f"Notification processing finished. "
+                        f"{sent_to_users} user(s) processed successfully; "
+                        f"{len(errors)} user(s) encountered an error."
+                    ),
+                )
+            elif sent_to_users:
+                messages.success(
+                    request,
+                    (
+                        f"Notification submission completed for "
+                        f"{sent_to_users} user(s). "
+                        f"Approximately {attempted_devices} device(s) targeted."
+                    ),
+                )
+            else:
+                messages.warning(
+                    request,
+                    "No notification submissions were confirmed. Check that the selected users have registered device tokens and review your server logs.",
+                )
+
+            if failed_requests:
+                messages.warning(
+                    request,
+                    f"The service reported {failed_requests} failed push request(s).",
+                )
+
+            for error in errors[:5]:
+                messages.error(request, error)
+
+            return redirect("push-notification-admin")
+
+    else:
+        form = PushNotificationForm()
+
+    # Registered devices for the dashboard table.
+    devices = (
+        DevicePushToken.objects
+        .select_related("user")
+        .order_by("-updated_at")
+    )
+
+    registered_user_ids = (
+        DevicePushToken.objects
+        .order_by()
+        .values_list("user_id", flat=True)
+        .distinct()
+    )
+
+    registered_users = User.objects.filter(
+        pk__in=registered_user_ids
+    ).order_by("username", "email")
+
+    def display_name(user):
+        return (
+            user.get_full_name()
+            or getattr(user, "email", "")
+            or getattr(user, "username", "")
+            or f"User #{user.pk}"
+        )
+
+    device_rows = [
+        {
+            "device": device,
+            "display_name": display_name(device.user),
+        }
+        for device in devices
+    ]
+
+    recipient_rows = [
+        {
+            "user": user,
+            "display_name": display_name(user),
+        }
+        for user in registered_users
+    ]
+
+    context = {
+        "form": form,
+        "device_rows": device_rows,
+        "recipient_rows": recipient_rows,
+        "total_devices": devices.count(),
+        "total_users": registered_users.count(),
+        "page_id": "push-notifications",
+    }
+
+    # IMPORTANT:
+    # Merge your project's existing dashboard context here.
+    # dashboard/base.html also expects dash_sub, dash_role,
+    # dash_role_label, dash_groups, user, and possibly dash_unread.
+    #
+    # Use the same context helper as your other dashboard views.
+    # Example, if your project has such a helper:
+    # context.update(get_dashboard_context(request))
+
+    return render(
+        request,
+        "dashboard/push-notifications.html",
+        context,
+    )

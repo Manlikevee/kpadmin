@@ -18,11 +18,7 @@ router.register("notifications", views.NotificationViewSet, basename="notificati
 router.register("prayer-requests", views.PrayerRequestViewSet, basename="prayer-request")
 router.register("stories", views.StoryViewSet, basename="story")
 router.register("notes", NoteViewSet, basename="note")
-path(
-    "push-tokens/register/",
-    RegisterPushTokenView.as_view(),
-    name="api-register-push-token",
-),
+
 urlpatterns = [
     path("", views.ApiRoot.as_view(), name="api-root"),
     path("auth/register/", views.RegisterView.as_view(), name="api-register"),
@@ -40,6 +36,11 @@ urlpatterns = [
     path("sermons/<str:video_id>/", views.SermonDetailView.as_view(), name="api-sermon"),
     path("live/", views.LiveStreamView.as_view(), name="api-live"),
     path("bible/versions/", views.BibleVersionList.as_view(), name="api-bible-versions"),
+    path(
+        "push-tokens/register/",
+        RegisterPushTokenView.as_view(),
+        name="api-register-push-token",
+    ),
 
 ]
 urlpatterns += router.urls

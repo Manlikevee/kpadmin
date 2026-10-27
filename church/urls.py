@@ -90,4 +90,9 @@ urlpatterns = [
         v.NoteDeleteView.as_view(),
         name="note-delete",
     ),
+    path(
+        "push-notifications/",
+        v.push_notification_admin,
+        name="push-notification-admin",
+    ),
 ]
