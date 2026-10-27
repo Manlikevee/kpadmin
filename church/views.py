@@ -918,7 +918,7 @@ def push_notification_admin(request):
             for error in errors[:5]:
                 messages.error(request, error)
 
-            return redirect("push-notification-admin")
+            return redirect("church:push-notification-admin")
 
     else:
         form = PushNotificationForm()
