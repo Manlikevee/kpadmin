@@ -131,3 +131,23 @@ def mark_notifications_read(user, notifications=None):
 def visible_events_q(user=None):
     """Public events: confirmed only. Branch filter applied by callers."""
     return Q(status="confirmed")
+
+
+def sync_branch_admin_roles(branch, previous_admin_ids=()):
+    """Keep ``User.role`` in step with ``Branch.admins``.
+
+    Used by both the dashboard form and the API so assigning someone as a branch
+    admin always promotes them, and removing their last branch demotes them.
+    """
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+    current = set(branch.admins.values_list("pk", flat=True))
+    for user in User.objects.filter(pk__in=current, role__in=[User.Role.MEMBER, User.Role.WORKER]):
+        user.role = User.Role.BRANCH_ADMIN
+        user.save(update_fields=["role"])
+    for user in User.objects.filter(pk__in=set(previous_admin_ids) - current, role=User.Role.BRANCH_ADMIN):
+        if not user.managed_branches.exists():  # no longer manages anything
+            has_assignment = user.worker_assignments.filter(is_active=True).exists()
+            user.role = User.Role.WORKER if has_assignment else User.Role.MEMBER
+            user.save(update_fields=["role"])

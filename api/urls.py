@@ -4,6 +4,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from push_notifications.views import RegisterPushTokenView
 from . import views
+from . import admin_views as av
 from .views import NoteViewSet
 
 router = DefaultRouter()
@@ -18,6 +19,10 @@ router.register("notifications", views.NotificationViewSet, basename="notificati
 router.register("prayer-requests", views.PrayerRequestViewSet, basename="prayer-request")
 router.register("stories", views.StoryViewSet, basename="story")
 router.register("notes", NoteViewSet, basename="note")
+router.register("ministries", av.MinistryViewSet, basename="ministry")
+router.register("praise-reports", av.PraiseReportViewSet, basename="praise-report")
+router.register("admin/prayer-requests", av.PrayerAdminViewSet, basename="admin-prayer-request")
+router.register("admin/giving", av.GivingViewSet, basename="admin-giving")
 
 urlpatterns = [
     path("", views.ApiRoot.as_view(), name="api-root"),
@@ -41,6 +46,19 @@ urlpatterns = [
         RegisterPushTokenView.as_view(),
         name="api-register-push-token",
     ),
-
+    path("dashboard/", av.DashboardView.as_view(), name="api-dashboard"),
+    # --- admin / management
+    path("admin/users/", av.AdminUserList.as_view(), name="api-admin-users"),
+    path("admin/settings/", av.SiteSettingsAdminView.as_view(), name="api-admin-settings"),
+    path("admin/bible/", av.BibleAdminList.as_view(), name="api-admin-bible"),
+    path("admin/bible/<int:pk>/", av.BibleAdminDetail.as_view(), name="api-admin-bible-detail"),
+    path("admin/bible/<int:pk>/replace/", av.BibleAdminReplace.as_view(), name="api-admin-bible-replace"),
+    path("admin/sermons/", av.SermonAdminList.as_view(), name="api-admin-sermons"),
+    path("admin/sermons/refresh/", av.SermonAdminRefresh.as_view(), name="api-admin-sermons-refresh"),
+    path("admin/sermons/<str:video_id>/", av.SermonAdminDetail.as_view(), name="api-admin-sermon"),
+    path("admin/notifications/", av.NotificationAdminList.as_view(), name="api-admin-notifications"),
+    path("admin/push/devices/", av.PushDeviceList.as_view(), name="api-admin-push-devices"),
+    path("admin/push/recipients/", av.PushRecipientList.as_view(), name="api-admin-push-recipients"),
+    path("admin/push/send/", av.PushSend.as_view(), name="api-admin-push-send"),
 ]
 urlpatterns += router.urls

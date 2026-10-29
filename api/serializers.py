@@ -3,6 +3,8 @@ import re
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.db import transaction
+from django.utils import timezone
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
@@ -183,7 +185,7 @@ class PasswordChangeSerializer(serializers.Serializer):
 # --------------------------------------------------------------- church data
 class BranchSerializer(serializers.ModelSerializer):
     service_time_lines = serializers.ListField(read_only=True)
-    admins = serializers.PrimaryKeyRelatedField(many=True, queryset=User.objects.all(), required=False)
+    admins = serializers.PrimaryKeyRelatedField(many=True, queryset=User.objects.filter(is_active=True), required=False)
 
     class Meta:
         model = Branch
@@ -198,11 +200,45 @@ class BranchSerializer(serializers.ModelSerializer):
             data.pop("admins", None)  # don't expose staff ids to the public
         return data
 
+    @transaction.atomic
+    def create(self, validated):
+        branch = super().create(validated)
+        services.sync_branch_admin_roles(branch)
+        return branch
+
+    @transaction.atomic
+    def update(self, instance, validated):
+        previous = set(instance.admins.values_list("pk", flat=True))
+        branch = super().update(instance, validated)
+        services.sync_branch_admin_roles(branch, previous)
+        return branch
+
 
 class MinistrySerializer(serializers.ModelSerializer):
+    branch = serializers.PrimaryKeyRelatedField(queryset=Branch.objects.all(), required=False, allow_null=True)
+    branch_name = serializers.CharField(source="branch.name", read_only=True, default=None)
+    leader = serializers.PrimaryKeyRelatedField(queryset=User.objects.filter(is_active=True), required=False,
+                                                allow_null=True)
+    leader_name = serializers.CharField(source="leader.display_name", read_only=True, default=None)
+    worker_count = serializers.IntegerField(read_only=True, default=0)
+
     class Meta:
         model = Ministry
-        fields = ("id", "name", "description", "branch", "is_active")
+        fields = ("id", "name", "description", "branch", "branch_name", "leader", "leader_name", "is_active",
+                  "worker_count", "created_at")
+        read_only_fields = ("created_at",)
+        validators = []  # the DB constraints are conditional; checked in validate()
+
+    def validate(self, attrs):
+        name = attrs.get("name", getattr(self.instance, "name", None))
+        branch = attrs.get("branch", getattr(self.instance, "branch", None))
+        if name:
+            dupes = Ministry.objects.filter(branch=branch, name__iexact=name.strip())
+            if self.instance:
+                dupes = dupes.exclude(pk=self.instance.pk)
+            if dupes.exists():
+                raise serializers.ValidationError({"name": "A ministry with this name already exists here."})
+        return attrs
 
 
 class MemberSerializer(serializers.ModelSerializer):
@@ -222,14 +258,48 @@ class MemberSerializer(serializers.ModelSerializer):
 
 
 class WorkerAssignmentSerializer(serializers.ModelSerializer):
+    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.filter(is_active=True))
+    branch = ManagedBranchField(queryset=Branch.objects.all())
+    ministry = serializers.PrimaryKeyRelatedField(queryset=Ministry.objects.filter(is_active=True), required=False,
+                                                  allow_null=True)
     user_name = serializers.CharField(source="user.display_name", read_only=True)
+    user_email = serializers.CharField(source="user.email", read_only=True)
     branch_name = serializers.CharField(source="branch.name", read_only=True)
     ministry_name = serializers.CharField(source="ministry.name", read_only=True, default=None)
 
     class Meta:
         model = WorkerAssignment
-        fields = ("id", "user", "user_name", "branch", "branch_name", "ministry", "ministry_name", "title",
-                  "is_active", "started_on")
+        fields = ("id", "user", "user_name", "user_email", "branch", "branch_name", "ministry", "ministry_name",
+                  "title", "is_active", "started_on")
+        read_only_fields = ("started_on",)
+        validators = []  # uniqueness is handled with update_or_create below
+
+    def validate(self, attrs):
+        inst = self.instance
+        if inst:
+            for field in ("user", "branch"):
+                if field in attrs and attrs[field] != getattr(inst, field):
+                    raise serializers.ValidationError({field: "Cannot be changed. Create a new assignment instead."})
+        branch = attrs.get("branch") or (inst.branch if inst else None)
+        ministry = attrs.get("ministry", inst.ministry if inst else None)
+        if branch and ministry and ministry.branch_id not in (None, branch.pk):
+            raise serializers.ValidationError({"ministry": "That ministry belongs to a different branch."})
+        if inst and "ministry" in attrs:
+            clash = WorkerAssignment.objects.filter(user=inst.user, branch=inst.branch, ministry=ministry)
+            if clash.exclude(pk=inst.pk).exists():
+                raise serializers.ValidationError({"ministry": "This person already has that assignment."})
+        return attrs
+
+    def create(self, validated):
+        # never duplicate an existing assignment (same as the dashboard form)
+        assignment, _ = WorkerAssignment.objects.update_or_create(
+            user=validated["user"], branch=validated["branch"], ministry=validated.get("ministry"),
+            defaults={"title": validated.get("title", ""), "is_active": validated.get("is_active", True)})
+        person = validated["user"]
+        if person.role == User.Role.MEMBER:
+            person.role = User.Role.WORKER
+            person.save(update_fields=["role"])
+        return assignment
 
 
 class WorkerApplicationSerializer(serializers.ModelSerializer):
@@ -309,7 +379,7 @@ class DevotionalSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Devotional
-        fields = ("id", "title", "scripture_ref", "scripture_text", "body", "date", "read_minutes")
+        fields = ("id", "title", "scripture_ref", "scripture_text", "body", "date", "is_published", "read_minutes")
 
 
 class NotificationSerializer(serializers.ModelSerializer):
@@ -368,6 +438,7 @@ class PrayerRequestSerializer(serializers.ModelSerializer):
 
 
 class StorySerializer(serializers.ModelSerializer):
+    branch = ManagedBranchField(queryset=Branch.objects.all(), required=False, allow_null=True)
     branch_name = serializers.CharField(
         source="branch.name",
         read_only=True,
@@ -390,8 +461,14 @@ class StorySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id",
+            "published_at",
             "created_at",
         ]
+
+    def validate_branch(self, value):
+        if value is None and not self.context["request"].user.is_super_admin:
+            raise serializers.ValidationError("A branch is required.")
+        return value
 
     def validate_media(self, value):
         if value and value.size > 100 * 1024 * 1024:
@@ -399,6 +476,13 @@ class StorySerializer(serializers.ModelSerializer):
                 "Story media must be 100 MB or smaller."
             )
         return value
+
+    def validate(self, attrs):
+        # same rule as the dashboard: stamp the publish time once, clear it when unpublished
+        published = attrs.get("is_published", getattr(self.instance, "is_published", False))
+        current = getattr(self.instance, "published_at", None)
+        attrs["published_at"] = (current or timezone.now()) if published else None
+        return attrs
 
 
 class NoteSerializer(serializers.ModelSerializer):

@@ -5,6 +5,7 @@ from django.utils import timezone
 from accounts.access import branches_for
 from push_notifications.models import DevicePushToken
 
+from . import services
 from .models import (Announcement, Branch, Devotional, Event, GivingRecord, Member, Ministry,
                      Notification, PraiseReport, Story, WorkerApplication, WorkerAssignment, Note)
 
@@ -79,14 +80,7 @@ class BranchForm(forms.ModelForm):
         previous = set(self.instance.admins.values_list("pk", flat=True)) if self.instance.pk else set()
         branch = super().save(commit=commit)
         if commit:
-            current = set(branch.admins.values_list("pk", flat=True))
-            for user in User.objects.filter(pk__in=current, role__in=[User.Role.MEMBER, User.Role.WORKER]):
-                user.role = User.Role.BRANCH_ADMIN
-                user.save(update_fields=["role"])
-            for user in User.objects.filter(pk__in=previous - current, role=User.Role.BRANCH_ADMIN):
-                if not user.managed_branches.exists():  # no longer manages anything
-                    user.role = User.Role.WORKER if user.worker_assignments.filter(is_active=True).exists() else User.Role.MEMBER
-                    user.save(update_fields=["role"])
+            services.sync_branch_admin_roles(branch, previous)
         return branch
 
 

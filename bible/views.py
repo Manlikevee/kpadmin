@@ -8,6 +8,7 @@ from django.views import View
 
 from accounts.mixins import SuperAdminRequiredMixin
 
+from . import services
 from .forms import BibleUploadForm
 from .models import BibleTranslation, human_size
 logger = logging.getLogger(__name__)
@@ -81,44 +82,20 @@ class BibleUploadView(SuperAdminRequiredMixin, View):
 class BibleReplaceView(SuperAdminRequiredMixin, View):
     def post(self, request, pk):
         obj = get_object_or_404(BibleTranslation, pk=pk)
-        old_file = obj.file.name if obj.file else None
-
-        form = BibleUploadForm(
-            request.POST,
-            request.FILES,
-            instance=obj,
-        )
+        form = BibleUploadForm(request.POST, request.FILES, instance=obj)
 
         if form.is_valid():
             try:
-                translation = form.save(commit=False)
-                translation.name = form.cleaned_data["name"].strip().upper()
-                translation.uploaded_by = request.user
-                translation.save()
-
-                # Delete the old Cloudinary asset only after the new
-                # file has been saved successfully.
-                if (
-                    old_file
-                    and old_file != translation.file.name
-                ):
-                    from cloudinary import uploader
-
-                    uploader.destroy(
-                        old_file,
-                        resource_type="raw",
-                        invalidate=True,
-                    )
-
-                messages.success(
-                    request,
-                    f"{translation.name} replaced successfully.",
+                services.replace_translation(
+                    obj,
+                    name=form.cleaned_data["name"],
+                    upload=form.cleaned_data["file"],
+                    user=request.user,
                 )
+                messages.success(request, f"{obj.name} replaced successfully.")
             except Exception:
-                messages.error(
-                    request,
-                    "Replacement failed. Check Cloudinary and try again.",
-                )
+                logger.exception("Bible translation replace failed")
+                messages.error(request, "Replacement failed. Check Cloudinary and try again.")
         else:
             for errors in form.errors.values():
                 for error in errors:

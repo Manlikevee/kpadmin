@@ -21,6 +21,7 @@ from bible.models import BibleTranslation
 from church import services
 from church.models import (Announcement, Branch, Devotional, Event, Member, Notification, NotificationRead,
                            PrayerRequest, WorkerApplication, WorkerAssignment, Story, Note)
+from church.views import DevotionalDetail
 from core.models import SiteSettings
 from sermons.views import overlay_notes
 from sermons.youtube import get_service
@@ -43,7 +44,10 @@ class ApiRoot(APIView):
                  "auth/password-reset/", "auth/password-reset/verify/", "auth/password-reset/confirm/", "me/",
                  "me/password/", "branches/", "members/", "workers/", "worker-applications/", "events/",
                  "announcements/", "sermons/", "live/", "devotionals/", "notifications/", "bible/versions/",
-                 "prayer-requests/", "site/"]
+                 "prayer-requests/", "site/", "dashboard/", "ministries/", "praise-reports/", "stories/", "notes/",
+                 "push-tokens/register/", "admin/users/", "admin/prayer-requests/", "admin/giving/",
+                 "admin/settings/", "admin/bible/", "admin/sermons/", "admin/notifications/", "admin/push/devices/",
+                 "admin/push/recipients/", "admin/push/send/"]
         return Response({n.strip("/").replace("/", "_"): base + n for n in names})
 
 
@@ -203,15 +207,31 @@ class MemberViewSet(viewsets.ModelViewSet):
         return scope_to_branches(Member.objects.select_related("branch"), self.request.user)
 
 
-class WorkerViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+class WorkerViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.RetrieveModelMixin,
+                    mixins.UpdateModelMixin, viewsets.GenericViewSet):
+    """Staff only; branch admins only touch their own branches (others return 404).
+
+    ``POST`` adds a worker directly (no application) and never duplicates an existing assignment.
+    ``PATCH`` changes ``title`` / ``ministry`` / ``is_active``; ``POST {id}/toggle/`` flips active/inactive.
+    """
+
     serializer_class = s.WorkerAssignmentSerializer
     permission_classes = [IsStaffRole]
     pagination_class = StandardPagination
     filterset_fields = ("branch", "ministry", "is_active")
+    search_fields = ("user__first_name", "user__last_name", "user__email", "title")
+    http_method_names = ["get", "post", "patch", "head", "options"]
 
     def get_queryset(self):
         return scope_to_branches(WorkerAssignment.objects.select_related("user", "branch", "ministry"),
                                  self.request.user)
+
+    @action(detail=True, methods=["post"])
+    def toggle(self, request, pk=None):
+        obj = self.get_object()
+        obj.is_active = not obj.is_active
+        obj.save(update_fields=["is_active", "updated_at"])
+        return Response(self.get_serializer(obj).data)
 
 
 class WorkerApplicationViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.RetrieveModelMixin,
@@ -278,6 +298,13 @@ class EventViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
+    @action(detail=True, methods=["post"])
+    def cancel(self, request, pk=None):
+        event = self.get_object()  # scoped: other branches' events return 404
+        event.status = Event.Status.CANCELLED
+        event.save(update_fields=["status", "updated_at"])
+        return Response(self.get_serializer(event).data)
+
     @action(detail=False, methods=["get"], permission_classes=[permissions.AllowAny])
     def upcoming(self, request):
         # one-off events still ahead, plus recurring ones (their first date may be in the past)
@@ -309,34 +336,42 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         serializer.save(author=self.request.user)
 
 
+
+
+
 class DevotionalViewSet(viewsets.ModelViewSet):
     serializer_class = s.DevotionalSerializer
-    permission_classes = [permissions.IsAuthenticated, ReadAnyWriteStaff]
+    permission_classes = [
+        permissions.IsAuthenticated,
+        ReadAnyWriteSuper,  # writing devotionals is super-admin only, as in the dashboard
+    ]
     pagination_class = StandardPagination
     filterset_fields = ("date",)
     search_fields = ("title", "scripture_ref")
 
     def get_queryset(self):
         qs = Devotional.objects.all()
-        u = self.request.user
+        user = self.request.user
 
-        # Staff can manage devotionals, including future and unpublished ones.
-        if u.is_staff_role:
+        # Staff can manage all devotionals, including future
+        # and unpublished devotionals.
+        if user.is_staff_role:
             return qs
 
-        # Other authenticated users can only see published devotionals
-        # dated today or earlier.
+        # Other authenticated users can only access published
+        # devotionals dated today or earlier.
         return qs.filter(
             is_published=True,
             date__lte=timezone.localdate(),
         )
 
     def perform_create(self, serializer):
-        serializer.save()
+        # Automatically assign the logged-in user as author.
+        serializer.save(author=self.request.user)
 
     @action(detail=False, methods=["get"])
     def today(self, request):
-        obj = (
+        devotional = (
             self.get_queryset()
             .filter(
                 is_published=True,
@@ -346,16 +381,26 @@ class DevotionalViewSet(viewsets.ModelViewSet):
             .first()
         )
 
-        if not obj:
+        if not devotional:
             raise Http404("No devotional available.")
 
-        return Response(self.get_serializer(obj).data)
+        serializer = self.get_serializer(devotional)
+        return Response(serializer.data)
 
-    @action(detail=False, methods=["post"], url_path="bulk-create")
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="bulk-create",
+    )
     def bulk_create(self, request):
+        # Only accept a JSON array.
         if not isinstance(request.data, list):
             return Response(
-                {"detail": "Expected a JSON array of devotionals."},
+                {
+                    "detail": (
+                        "Expected a JSON array of devotionals."
+                    )
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -365,11 +410,19 @@ class DevotionalViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        serializer = self.get_serializer(data=request.data, many=True)
+        # Validate all devotionals before saving any.
+        serializer = self.get_serializer(
+            data=request.data,
+            many=True,
+        )
         serializer.is_valid(raise_exception=True)
 
+        # Save every devotional under the logged-in user.
+        # The transaction rolls back if saving raises an error.
         with transaction.atomic():
-            devotionals = serializer.save()
+            devotionals = serializer.save(
+                author=request.user,
+            )
 
         return Response(
             {
@@ -382,7 +435,6 @@ class DevotionalViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_201_CREATED,
         )
-
 class NotificationViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     serializer_class = s.NotificationSerializer
     pagination_class = StandardPagination
