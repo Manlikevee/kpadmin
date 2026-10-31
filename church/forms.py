@@ -135,10 +135,11 @@ class EventForm(ScopedForm):
 
 class RotaForm(forms.ModelForm):
     service_at = dt_field(required=True, label="Service date and time")
+    service_until = dt_field(required=True, label="Rota period ends")
 
     class Meta:
         model = Rota
-        fields = ("event", "service_at", "branch", "notes")
+        fields = ("event", "service_at", "service_until", "branch", "notes")
         widgets = {"notes": forms.Textarea(attrs={"rows": 3})}
 
     def __init__(self, *args, **kwargs):
@@ -154,11 +155,13 @@ class RotaForm(forms.ModelForm):
             return f"{schedule} · {event.title} · {event.branch or 'All branches'}"
         self.fields["event"].label_from_instance = event_label
         self.fields["event"].help_text = "Recurring weekly and monthly service events remain selectable even when their first date has passed."
-        self.fields["service_at"].help_text = "Choose the actual upcoming occurrence. For repeating services, keep the same weekday or monthly date and service time."
+        self.fields["service_at"].label = "Rota period starts"
+        self.fields["service_at"].help_text = "Choose the weekend or future period this rota will cover. Create a separate rota for each changing weekly schedule."
+        self.fields["service_until"].help_text = "Choose the last date covered by this rota. Use the same date for a single-day service or Sunday for a full weekend."
         self.fields["branch"].queryset = Branch.objects.filter(is_active=True)
         self.event_occurrences = [
-            {"id": event.pk, "service_at": event.next_service_occurrence().strftime(DT_FORMAT)
-             if event.next_service_occurrence() else ""}
+            {"id": event.pk, "start_at": timezone.localtime(event.start_at).strftime(DT_FORMAT),
+             "repeat": event.repeat}
             for event in events
         ]
 

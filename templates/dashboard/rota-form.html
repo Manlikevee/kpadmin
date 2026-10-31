@@ -3,7 +3,7 @@
 {% block crumb %}Rota{% endblock %}
 {% block content %}
 <a class="back" href="{% url 'church:rotas' %}">← Rotas</a>
-<div class="ph"><div><h1>{% if object %}Edit{% else %}Create{% endif %} rota</h1><div class="sub">Choose a confirmed service, select the actual date of its next occurrence, then add the teams and workers who will serve. Weekly and monthly services remain available.</div></div></div>
+<div class="ph"><div><h1>{% if object %}Edit{% else %}Create{% endif %} rota</h1><div class="sub">Choose a service, set the weekend or future period this rota covers, then add the teams and workers serving during that period. Create a separate rota for each week as assignments change.</div></div></div>
 <form method="post" class="fgrid" novalidate>
   {% csrf_token %}
   {{ event_occurrences|json_script:"rota-event-occurrences" }}
@@ -11,6 +11,7 @@
     <section class="card" style="margin-bottom:14px"><div class="f wide">
       {% if form.non_field_errors %}<div class="flash error">{{ form.non_field_errors }}</div>{% endif %}
       {% for field in form %}{% include "dashboard/_field.html" %}{% endfor %}
+      <label id="service-occurrence-wrap" hidden>Choose service date<select id="service-occurrence"><option value="">Choose a date</option></select><small>Choose the specific weekly service date for this rota.</small></label>
     </div></section>
     <section class="card">
       <div class="bar"><div><h2>Service functions</h2><p class="s">Add one row for each role or team, such as “Choir · Instrumentalists” or “Media · Projection”. You can assign several workers to a function.</p></div><button class="btn" type="button" id="add-position">＋ Add function</button></div>
@@ -44,7 +45,11 @@ document.addEventListener('DOMContentLoaded',function(){
   const eventSelect=document.getElementById('id_event'), serviceAt=document.getElementById('id_service_at');
   const occurrenceData=document.getElementById('rota-event-occurrences');
   const occurrences=occurrenceData?JSON.parse(occurrenceData.textContent):[];
-  if(eventSelect&&serviceAt) eventSelect.addEventListener('change',function(){const choice=occurrences.find(item=>String(item.id)===eventSelect.value);if(choice&&choice.service_at)serviceAt.value=choice.service_at;});
+  const serviceUntil=document.getElementById('id_service_until');
+  const occurrenceWrap=document.getElementById('service-occurrence-wrap'), occurrenceSelect=document.getElementById('service-occurrence');
+  function datesFor(choice){if(!choice)return[];const anchor=new Date(choice.start_at), now=new Date(), dates=[];if(choice.repeat==='weekly'){const offset=(anchor.getDay()-now.getDay()+7)%7;let next=new Date(now.getFullYear(),now.getMonth(),now.getDate()+offset,anchor.getHours(),anchor.getMinutes());if(next<now)next.setDate(next.getDate()+7);for(let i=0;i<26;i++){const d=new Date(next);d.setDate(d.getDate()+7*i);dates.push(d);}}else if(choice.repeat==='monthly'){for(let i=0;i<18;i++){const y=now.getFullYear(),m=now.getMonth()+i,last=new Date(y,m+1,0).getDate();if(anchor.getDate()>last)continue;const d=new Date(y,m,anchor.getDate(),anchor.getHours(),anchor.getMinutes());if(d>=now)dates.push(d);}}else if(anchor>=now)dates.push(anchor);return dates;}
+  function loadDates(){if(!eventSelect||!occurrenceSelect)return;const choice=occurrences.find(item=>String(item.id)===eventSelect.value), dates=datesFor(choice);occurrenceSelect.replaceChildren(new Option('Choose a date',''));dates.forEach(d=>{const value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+'T'+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');occurrenceSelect.add(new Option(d.toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long',year:'numeric'})+' · '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}),value));});if(serviceAt&&serviceAt.value){const selected=Array.from(occurrenceSelect.options).find(o=>o.value&&new Date(o.value).getTime()===new Date(serviceAt.value).getTime());if(selected)occurrenceSelect.value=selected.value;}occurrenceWrap.hidden=!dates.length;}
+  if(eventSelect&&serviceAt){eventSelect.addEventListener('change',loadDates);occurrenceSelect.addEventListener('change',function(){if(this.value){serviceAt.value=this.value;if(serviceUntil)serviceUntil.value=this.value;}});loadDates();}
   const branch=document.getElementById('id_branch');
   if(branch) branch.addEventListener('change',function(){const u=new URL(location.href);u.searchParams.set('branch',branch.value);location.href=u.toString();});
   const rows=document.getElementById('position-rows'), total=document.getElementById('id_positions-TOTAL_FORMS'), empty=document.getElementById('empty-position');

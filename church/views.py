@@ -94,7 +94,8 @@ class SuperDashboard(SuperAdminRequiredMixin, View):
             "branch_count": Branch.objects.filter(is_active=True).count(),
             "giving_month": giving,
             "upcoming_events": Event.objects.filter(start_at__gte=now).select_related("branch")[:3],
-            "upcoming_rotas": Rota.objects.filter(service_at__gte=now).select_related("event", "branch").order_by("service_at")[:3],
+            "upcoming_rotas": Rota.objects.filter(Q(service_at__gte=now) | Q(service_until__gte=now))
+                .select_related("event", "branch").order_by("service_at")[:3],
             "pending_praise": PraiseReport.objects.filter(status="pending").select_related("user")[:3],
             "pending_prayer_items": PrayerRequest.objects.filter(status="pending")[:3],
             "pending_members": Member.objects.filter(status="pending")[:2],
@@ -139,7 +140,8 @@ class WorkerDashboard(WorkerRequiredMixin, View):
     def get(self, request):
         ctx = portal_context(request, "worker-dashboard")
         ctx["my_upcoming_rota_positions"] = RotaPosition.objects.filter(
-            workers__user=request.user, rota__service_at__gte=timezone.now()
+            workers__user=request.user
+        ).filter(Q(rota__service_at__gte=timezone.now()) | Q(rota__service_until__gte=timezone.now())
         ).select_related("rota__event", "rota__branch").prefetch_related("workers__user").order_by("rota__service_at")[:8]
         return render(request, "dashboard/worker-dashboard.html", ctx)
 
@@ -519,7 +521,10 @@ class RotaFormView(SuperAdminRequiredMixin, View):
                 if added_worker_ids:
                     worker_users = list(User.objects.filter(pk__in=added_worker_ids, is_active=True))
                     title = "You’re on the service rota"
-                    message = f"You’ve been assigned to {event.title} at {branch.name} on {rota.service_at:%d %b %Y, %I:%M %p}."
+                    period = rota.service_at.strftime("%d %b %Y")
+                    if rota.service_until.date() != rota.service_at.date():
+                        period = f"{period}–{rota.service_until:%d %b %Y}"
+                    message = f"You’ve been assigned to {event.title} at {branch.name} for {period}."
                     for worker in worker_users:
                         Notification.objects.create(title=title, message=message[:140], audience=Notification.Audience.USER,
                                                     recipient=worker, created_by=request.user)

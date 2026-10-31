@@ -251,24 +251,11 @@ class Event(TimeStamped):
                     return candidate
         return None
 
-    def matches_service_occurrence(self, occurrence):
-        """Check that a chosen date follows this event's one-off or repeat schedule."""
-        if not occurrence:
-            return False
-        anchor = timezone.localtime(self.start_at)
-        selected = timezone.localtime(occurrence)
-        same_time = (selected.hour, selected.minute) == (anchor.hour, anchor.minute)
-        if self.repeat == self.Repeat.WEEKLY:
-            return selected.weekday() == anchor.weekday() and same_time
-        if self.repeat == self.Repeat.MONTHLY:
-            return selected.day == anchor.day and same_time
-        return selected.date() == anchor.date() and same_time
-
-
 class Rota(TimeStamped):
-    """A service rota belongs to one occurrence of a scheduled service event."""
+    """A service rota covers a date range associated with a scheduled service event."""
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="rotas")
     service_at = models.DateTimeField()
+    service_until = models.DateTimeField()
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name="rotas")
     notes = models.TextField(blank=True)
     created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="created_rotas")
@@ -277,23 +264,34 @@ class Rota(TimeStamped):
         ordering = ["service_at"]
         constraints = [
             models.UniqueConstraint(fields=["event", "service_at", "branch"], name="uniq_rota_event_date_branch"),
+            models.CheckConstraint(condition=Q(service_until__gte=models.F("service_at")),
+                                   name="rota_period_end_after_start"),
         ]
 
     def clean(self):
         super().clean()
         errors = {}
-        if self.event_id and self.service_at:
-            if self.service_at < timezone.now():
-                errors["service_at"] = "Choose a future service date."
-            elif not self.event.matches_service_occurrence(self.service_at):
-                errors["service_at"] = "Choose a date and time that matches this service schedule."
+        if self.service_until and self.service_until < timezone.now():
+            errors["service_until"] = "Choose a current or future rota period."
+        elif not self.pk and self.service_at and self.service_at < timezone.now():
+            errors["service_at"] = "Choose a future period start."
+        if self.service_at and self.service_until and self.service_until < self.service_at:
+            errors["service_until"] = "The period end must be on or after its start."
+        if self.event_id and self.branch_id and self.service_at and self.service_until:
+            overlaps = Rota.objects.filter(event_id=self.event_id, branch_id=self.branch_id,
+                                           service_at__lte=self.service_until,
+                                           service_until__gte=self.service_at)
+            if self.pk:
+                overlaps = overlaps.exclude(pk=self.pk)
+            if overlaps.exists():
+                errors["service_at"] = "This service already has a rota covering part of that period."
         if self.event_id and self.branch_id and self.event.branch_id and self.event.branch_id != self.branch_id:
             errors["branch"] = "The selected service belongs to a different branch."
         if errors:
             raise ValidationError(errors)
 
     def __str__(self):
-        return f"{self.event.title} — {self.service_at:%d %b %Y} — {self.branch}"
+        return f"{self.event.title} — {self.service_at:%d %b %Y} to {self.service_until:%d %b %Y} — {self.branch}"
 
 
 class RotaPosition(TimeStamped):

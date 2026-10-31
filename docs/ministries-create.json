@@ -1,0 +1,44 @@
+[
+  {
+    "name": "Choir",
+    "description": "The Choir helps the church worship through song at Sunday services and special gatherings. Members prepare together, learn and rehearse music, and create an atmosphere that helps people participate in worship. You do not need to be a professional singer to get involved; a willingness to learn, attend rehearsals, and serve as part of a team is a good place to start.",
+    "branch": null,
+    "leader": null,
+    "is_active": true
+  },
+  {
+    "name": "Youth",
+    "description": "Youth creates a welcoming place for young people aged 13 to 25 to grow in faith, build lasting friendships, and find support through every season of life. The ministry brings young people together for fellowship, Bible learning, prayer, discussions, and service. Young people can take part, share their ideas, and grow as they discover how to live out their faith in everyday life.",
+    "branch": null,
+    "leader": null,
+    "is_active": true
+  },
+  {
+    "name": "Children’s church",
+    "description": "Children’s church provides a safe, joyful, and age-appropriate Sunday experience for children aged 3 to 12. Through Bible stories, worship, creative activities, and caring relationships, children learn about God and develop a foundation of faith. The team welcomes children with patience and care, works to keep the environment secure, and partners with parents and guardians so every child can feel known and included.",
+    "branch": null,
+    "leader": null,
+    "is_active": true
+  },
+  {
+    "name": "Ushering",
+    "description": "The Ushering team helps every person feel welcomed and supported from the moment they arrive. Ushers greet visitors and members, help people find seats, share practical information, and assist with the smooth flow of each service. The team serves with warmth, attentiveness, and care, helping create an orderly environment where everyone can focus on worship and feel at home.",
+    "branch": null,
+    "leader": null,
+    "is_active": true
+  },
+  {
+    "name": "Prayer team",
+    "description": "The Prayer team stands with members and the wider community through prayer. Team members pray during services and gatherings, support people who request prayer, and handle personal information with sensitivity and respect. The ministry is for people who are committed to listening, praying with compassion, and encouraging others as they seek God through both joyful and difficult seasons.",
+    "branch": null,
+    "leader": null,
+    "is_active": true
+  },
+  {
+    "name": "Media & tech",
+    "description": "Media & tech supports in-person and online services through sound, cameras, projection, and livestream production. The team prepares equipment before services, coordinates closely with worship leaders and speakers, and helps people follow along in the room and online. No previous technical experience is required for every role; training and hands-on support help volunteers learn the equipment and serve reliably behind the scenes.",
+    "branch": null,
+    "leader": null,
+    "is_active": true
+  }
+]

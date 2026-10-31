@@ -581,27 +581,37 @@ class RotaSerializer(serializers.ModelSerializer):
     event_title = serializers.CharField(source="event.title", read_only=True)
     starts_at = serializers.DateTimeField(source="service_at", read_only=True)
     service_at = serializers.DateTimeField(required=True)
+    service_until = serializers.DateTimeField(required=True)
     branch_name = serializers.CharField(source="branch.name", read_only=True)
     positions = RotaPositionSerializer(many=True, required=False)
 
     class Meta:
         model = Rota
-        fields = ("id", "event", "event_title", "starts_at", "service_at", "branch", "branch_name", "notes", "positions")
+        fields = ("id", "event", "event_title", "starts_at", "service_at", "service_until", "branch", "branch_name", "notes", "positions")
 
     def validate(self, attrs):
         event = attrs.get("event", getattr(self.instance, "event", None))
         branch = attrs.get("branch", getattr(self.instance, "branch", None))
         service_at = attrs.get("service_at", getattr(self.instance, "service_at", None))
-        if service_at and service_at < timezone.now():
+        service_until = attrs.get("service_until", getattr(self.instance, "service_until", None))
+        now = timezone.now()
+        if not self.instance and service_at and service_at < now:
             raise serializers.ValidationError({"service_at": "Choose a future service date."})
-        if event and service_at and not event.matches_service_occurrence(service_at):
-            raise serializers.ValidationError({"service_at": "Choose a date and time that matches this service schedule."})
-        if event and branch and service_at:
-            existing = Rota.objects.filter(event=event, branch=branch, service_at=service_at)
+        if service_until and service_until < now:
+            raise serializers.ValidationError({"service_until": "Choose a current or future rota period."})
+        if service_at and service_until and service_until < service_at:
+            raise serializers.ValidationError({"service_until": "The period end must be on or after its start."})
+        if event and branch and service_at and service_until:
+            existing = Rota.objects.filter(
+                event=event,
+                branch=branch,
+                service_at__lte=service_until,
+                service_until__gte=service_at,
+            )
             if self.instance:
                 existing = existing.exclude(pk=self.instance.pk)
             if existing.exists():
-                raise serializers.ValidationError({"service_at": "A rota already exists for this service date."})
+                raise serializers.ValidationError({"service_at": "This service already has a rota covering part of that period."})
         if event and branch and event.branch_id and event.branch_id != branch.pk:
             raise serializers.ValidationError({"branch": "The selected service belongs to a different branch."})
         for index, position in enumerate(attrs.get("positions", [])):
