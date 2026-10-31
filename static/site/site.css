@@ -452,3 +452,10 @@ details[open] > summary::after { transform: rotate(45deg) }
 .flash { border: 1px solid rgba(0,0,0,.12); border-radius: 12px; padding: 12px 16px; margin: 8px 0; background: #fff8ec }
 .flash.success { border-color: #4caf7a } .flash.error { border-color: #d9534f }
 .form .errorlist, .errorlist { color: #b42318; list-style: none; padding: 0; margin: 4px 0 0; font-size: 13px }
+
+/* Keep ministry summaries compact while preserving the full text on detail pages. */
+.tile .ministry-summary { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden }
+
+
+.tile.ministry-card { display: flex; flex-direction: column }
+.ministry-card .ministry-read-more { align-self: flex-start; margin-top: auto }

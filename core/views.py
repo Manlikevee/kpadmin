@@ -43,6 +43,7 @@ class HomeView(Page):
             praise=PraiseReport.objects.filter(status="published")[:3],
             branches=Branch.objects.filter(is_active=True)[:3],
             branch_total=Branch.objects.filter(is_active=True).count(),
+            ministries=Ministry.objects.filter(is_active=True).select_related("branch")[:6],
         )
         return ctx
 
@@ -83,6 +84,19 @@ class MinistriesView(Page):
     def get_context_data(self, **kw):
         ctx = super().get_context_data(**kw)
         ctx["ministries"] = Ministry.objects.filter(is_active=True).select_related("branch")
+        return ctx
+
+
+class MinistryDetailView(Page):
+    template_name = "website/ministry-detail.html"
+    nav = "ministries"
+
+    def get_context_data(self, **kw):
+        ctx = super().get_context_data(**kw)
+        ctx["ministry"] = get_object_or_404(
+            Ministry.objects.filter(is_active=True).select_related("branch", "leader"),
+            pk=self.kwargs["pk"],
+        )
         return ctx
 
 

@@ -558,10 +558,15 @@ class NoteSerializer(serializers.ModelSerializer):
 
 class RotaPositionSerializer(serializers.ModelSerializer):
     workers = serializers.SerializerMethodField()
+    worker_ids = serializers.PrimaryKeyRelatedField(
+        source="workers", queryset=WorkerAssignment.objects.filter(is_active=True), many=True,
+        required=False, write_only=True,
+    )
 
     class Meta:
         model = RotaPosition
-        fields = ("id", "category", "name", "sort_order", "workers")
+        fields = ("id", "category", "name", "sort_order", "workers", "worker_ids")
+        read_only_fields = ("id",)
 
     def get_workers(self, obj):
         return [{"id": a.user_id, "name": a.user.display_name, "assignment_id": a.pk}
@@ -569,14 +574,65 @@ class RotaPositionSerializer(serializers.ModelSerializer):
 
 
 class RotaSerializer(serializers.ModelSerializer):
+    event = serializers.PrimaryKeyRelatedField(
+        queryset=Event.objects.filter(kind=Event.Kind.SERVICE, status=Event.Status.CONFIRMED),
+    )
+    branch = serializers.PrimaryKeyRelatedField(queryset=Branch.objects.filter(is_active=True))
     event_title = serializers.CharField(source="event.title", read_only=True)
     starts_at = serializers.DateTimeField(source="event.start_at", read_only=True)
     branch_name = serializers.CharField(source="branch.name", read_only=True)
-    positions = RotaPositionSerializer(many=True, read_only=True)
+    positions = RotaPositionSerializer(many=True, required=False)
 
     class Meta:
         model = Rota
         fields = ("id", "event", "event_title", "starts_at", "branch", "branch_name", "notes", "positions")
+
+    def validate(self, attrs):
+        event = attrs.get("event", getattr(self.instance, "event", None))
+        branch = attrs.get("branch", getattr(self.instance, "branch", None))
+        if event and event.start_at < timezone.now():
+            raise serializers.ValidationError({"event": "Choose an upcoming service event."})
+        if event:
+            existing = Rota.objects.filter(event=event)
+            if self.instance:
+                existing = existing.exclude(pk=self.instance.pk)
+            if existing.exists():
+                raise serializers.ValidationError({"event": "A rota already exists for this service event."})
+        if event and branch and event.branch_id and event.branch_id != branch.pk:
+            raise serializers.ValidationError({"branch": "The selected service belongs to a different branch."})
+        for index, position in enumerate(attrs.get("positions", [])):
+            for worker in position.get("workers", []):
+                if branch and worker.branch_id != branch.pk:
+                    raise serializers.ValidationError({
+                        "positions": {index: {"worker_ids": [f"{worker.user.display_name} is not assigned to this branch."]}}
+                    })
+        return attrs
+
+    @staticmethod
+    def _save_positions(rota, positions):
+        rota.positions.all().delete()
+        for index, position_data in enumerate(positions):
+            workers = position_data.pop("workers", [])
+            position = RotaPosition.objects.create(rota=rota, sort_order=position_data.pop("sort_order", index),
+                                                   **position_data)
+            position.workers.set(workers)
+
+    @transaction.atomic
+    def create(self, validated_data):
+        positions = validated_data.pop("positions", [])
+        rota = Rota.objects.create(**validated_data)
+        self._save_positions(rota, positions)
+        return rota
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        positions = validated_data.pop("positions", None)
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+        instance.save()
+        if positions is not None:
+            self._save_positions(instance, positions)
+        return instance
 
 
 class PastorSerializer(serializers.ModelSerializer):

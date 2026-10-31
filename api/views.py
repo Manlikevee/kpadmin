@@ -1,7 +1,8 @@
 from datetime import timedelta
+from threading import Thread
 
 from django.contrib.auth import get_user_model
-from django.db import transaction
+from django.db import close_old_connections, transaction
 from django.db.models import Q
 from django.http import Http404
 from django.utils import timezone
@@ -15,6 +16,8 @@ from rest_framework.response import Response
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
+
+from push_notifications.services import send_push_to_user
 
 from accounts import codes
 from accounts.access import branches_for, member_branch_ids, scope_to_branches
@@ -334,15 +337,51 @@ class RotaViewSet(viewsets.ModelViewSet):
         qs = Rota.objects.select_related("event", "branch").prefetch_related("positions__workers__user")
         u = self.request.user
         if u.is_super_admin:
-            return qs
-        branch_ids = u.worker_assignments.filter(is_active=True).values_list("branch_id", flat=True)
-        member = getattr(u, "member_record", None)
-        if member and member.branch_id:
-            branch_ids = list(branch_ids) + [member.branch_id]
-        return qs.filter(branch_id__in=branch_ids)
+            scoped = qs
+        else:
+            branch_ids = set(member_branch_ids(u))
+            branch_ids.update(branches_for(u).values_list("pk", flat=True))
+            scoped = qs.filter(branch_id__in=branch_ids)
+        if self.request.query_params.get("upcoming", "").lower() in ("1", "true", "yes"):
+            scoped = scoped.filter(event__start_at__gte=timezone.now())
+        return scoped
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        rota = serializer.save(created_by=self.request.user)
+        self._notify_added_workers(rota, self._assigned_user_ids(rota))
+
+    def perform_update(self, serializer):
+        previous = self._assigned_user_ids(serializer.instance)
+        rota = serializer.save()
+        self._notify_added_workers(rota, self._assigned_user_ids(rota) - previous)
+
+    @staticmethod
+    def _assigned_user_ids(rota):
+        return set(rota.positions.values_list("workers__user_id", flat=True)) - {None}
+
+    def _notify_added_workers(self, rota, worker_ids):
+        if not worker_ids:
+            return
+        workers = list(User.objects.filter(pk__in=worker_ids, is_active=True))
+        title = "You’re on the service rota"
+        message = f"You’ve been assigned to {rota.event.title} at {rota.branch.name} on {rota.event.start_at:%d %b %Y, %I:%M %p}."
+        for worker in workers:
+            Notification.objects.create(title=title, message=message[:140], audience=Notification.Audience.USER,
+                                        recipient=worker, created_by=self.request.user)
+
+        def send_rota_pushes(ids, push_title, push_message, rota_id):
+            close_old_connections()
+            try:
+                for worker in User.objects.filter(pk__in=ids, is_active=True):
+                    send_push_to_user(worker, push_title, push_message, {"type": "rota", "rota_id": rota_id})
+            finally:
+                close_old_connections()
+
+        transaction.on_commit(lambda: Thread(
+            target=send_rota_pushes,
+            args=(list(worker_ids), title, message[:140], rota.pk),
+            daemon=True,
+        ).start())
 
 
 class PastorViewSet(viewsets.ModelViewSet):

@@ -9,6 +9,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.db.models import Count, Q, Sum
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -27,7 +28,7 @@ from bible.forms import BibleUploadForm
 from bible.models import BibleTranslation, human_size
 from church import services
 from church.models import (Announcement, Branch, Devotional, Event, GivingRecord, Member, Ministry, Notification,
-                           NotificationRead, PraiseReport, PrayerRequest, WorkerApplication)
+                           NotificationRead, PraiseReport, PrayerRequest, WorkerApplication, Rota)
 from core.models import SiteSettings
 from push_notifications.models import DevicePushToken
 from push_notifications.services import send_push_bulk
@@ -117,6 +118,10 @@ class DashboardView(APIView):
             "member_growth": monthly_counts(Member.objects.all(), "joined_on"),
             "upcoming_events": s.EventSerializer(
                 Event.objects.filter(start_at__gte=now).select_related("branch")[:3], many=True, context=ctx).data,
+            "upcoming_rotas": s.RotaSerializer(
+                Rota.objects.filter(event__start_at__gte=now).select_related("event", "branch")
+                .prefetch_related("positions__workers__user")[:5], many=True, context=ctx,
+            ).data,
             "pending_praise_reports": a.PraiseReportAdminSerializer(
                 PraiseReport.objects.filter(status="pending").select_related("branch")[:3], many=True,
                 context=ctx).data,
@@ -158,6 +163,11 @@ class DashboardView(APIView):
             },
             "pending_applications": s.WorkerApplicationSerializer(pending, many=True, context=ctx).data,
             "upcoming_events": s.EventSerializer(events.select_related("branch")[:3], many=True, context=ctx).data,
+            "upcoming_rotas": s.RotaSerializer(
+                Rota.objects.filter(branch=branch, event__start_at__gte=now)
+                .select_related("event", "branch").prefetch_related("positions__workers__user")[:5],
+                many=True, context=ctx,
+            ).data,
             "announcements": s.AnnouncementSerializer(announcements.select_related("branch")[:3], many=True,
                                                       context=ctx).data,
         }
@@ -185,6 +195,11 @@ class DashboardView(APIView):
             "upcoming_events": s.EventSerializer(
                 Event.objects.filter(in_scope, status="confirmed", start_at__gte=now).select_related("branch")[:5],
                 many=True, context=ctx).data,
+            "upcoming_rotas": s.RotaSerializer(
+                Rota.objects.filter(branch_id__in=member_branch_ids(user), event__start_at__gte=now)
+                .select_related("event", "branch").prefetch_related("positions__workers__user")[:5],
+                many=True, context=ctx,
+            ).data,
             "devotional": s.DevotionalSerializer(devotionals.first(), context=ctx).data if devotionals.exists()
             else None,
             "recent_devotionals": s.DevotionalSerializer(devotionals[:4], many=True, context=ctx).data,
@@ -231,6 +246,39 @@ class MinistryViewSet(viewsets.ModelViewSet):
         if u.is_authenticated and u.is_super_admin:
             return qs
         return qs.filter(is_active=True)
+
+    @action(detail=False, methods=["post"], url_path="bulk-create")
+    def bulk_create(self, request):
+        """Create a list of ministries atomically from a JSON array (superadmin only)."""
+        if not isinstance(request.data, list) or not request.data:
+            raise ValidationError({"detail": "Send a non-empty JSON array of ministry objects."})
+
+        # The database uniqueness constraint catches existing records, but does not
+        # detect duplicates among items until they are saved. Catch those first so
+        # the response can identify the conflicting array indexes clearly.
+        seen = {}
+        duplicate_errors = {}
+        for index, item in enumerate(request.data):
+            if not isinstance(item, dict):
+                continue  # The serializer will return the item-specific type error.
+            name = item.get("name")
+            if not isinstance(name, str) or not name.strip():
+                continue  # Let the serializer report required/invalid name details.
+            branch = item.get("branch")
+            key = (str(branch) if branch is not None else None, name.strip().casefold())
+            if key in seen:
+                duplicate_errors[index] = {"name": [f"Duplicates ministry at index {seen[key]} in this request."]}
+            else:
+                seen[key] = index
+        if duplicate_errors:
+            raise ValidationError({"items": duplicate_errors})
+
+        serializer = self.get_serializer(data=request.data, many=True)
+        serializer.is_valid(raise_exception=True)
+        with transaction.atomic():
+            ministries = serializer.save()
+        output = self.get_serializer(ministries, many=True)
+        return Response(output.data, status=status.HTTP_201_CREATED)
 
 
 # =============================================================== prayer
