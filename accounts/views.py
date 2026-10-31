@@ -27,10 +27,7 @@ class RegisterView(CreateView):
 
 
 class ProfileView(LoginRequiredMixin, View):
-    """Members and workers manage their own permitted profile information only.
-
-    Role, branch assignment and permissions are never editable here.
-    """
+    """Members and workers manage their profile and associated member branch."""
 
     template_name = "accounts/profile.html"
 
@@ -53,6 +50,15 @@ class ProfileView(LoginRequiredMixin, View):
                 user.username = user.email
             user.save()
             profile_form.save()
+            from church.models import Member
+            branch = profile_form.cleaned_data["branch"]
+            member, created = Member.objects.get_or_create(
+                user=user,
+                defaults={"full_name": user.display_name, "email": user.email, "branch": branch},
+            )
+            if not created and member.branch_id != getattr(branch, "pk", None):
+                member.branch = branch
+                member.save(update_fields=["branch", "updated_at"])
             messages.success(request, "Profile updated.")
             return redirect("accounts:profile")
         return render(request, self.template_name, {"user_form": user_form, "profile_form": profile_form})

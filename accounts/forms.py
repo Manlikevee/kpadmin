@@ -12,7 +12,8 @@ class RegistrationForm(UserCreationForm):
     last_name = forms.CharField(max_length=150, label="Last name")
     email = forms.EmailField()
     phone = forms.CharField(max_length=24, required=False)
-    branch = forms.ModelChoiceField(queryset=None, required=False, empty_label="I'm not sure yet", label="Your branch")
+    branch = forms.ModelChoiceField(queryset=None, required=False, empty_label="Rather not say", label="Church branch",
+                                    help_text="Choose the branch you attend, or select “Rather not say”.")
 
     class Meta:
         model = User
@@ -53,9 +54,21 @@ class UserEditForm(forms.ModelForm):
 
 
 class ProfileForm(forms.ModelForm):
+    branch = forms.ModelChoiceField(queryset=None, required=False, empty_label="Rather not say", label="Church branch",
+                                    help_text="Update the branch you are associated with, or select “Rather not say”.")
+
     class Meta:
         model = Profile
         fields = ("phone", "image", "bio")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from church.models import Branch
+        self.fields["branch"].queryset = Branch.objects.filter(is_active=True)
+        from church.models import Member
+        member = Member.objects.filter(user=self.instance.user).select_related("branch").first() if self.instance and self.instance.pk else None
+        if member:
+            self.initial.setdefault("branch", member.branch_id)
 
 
 class StyledPasswordChangeForm(PasswordChangeForm):

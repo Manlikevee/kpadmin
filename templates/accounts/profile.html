@@ -1,10 +1,10 @@
 {% extends "dashboard/base.html" %}
 {% block title %}My profile{% endblock %}{% block crumb %}My profile{% endblock %}
-{% block content %}<div class="ph"><div><h1>My profile</h1><div class="sub">Update your personal details. Your role and branch access are managed by church administrators.</div></div><div class="acts"><a class="btn" href="{% url 'accounts:password_change' %}">Change password</a></div></div>
+{% block content %}<div class="ph"><div><h1>My profile</h1><div class="sub">Update your personal details and the branch you are associated with. Role permissions remain managed by church administrators.</div></div><div class="acts"><a class="btn" href="{% url 'accounts:password_change' %}">Change password</a></div></div>
 <form class="fgrid" method="post" enctype="multipart/form-data" novalidate>{% csrf_token %}
 <div class="card"><div class="f wide">
-{% for field in user_form %}<label>{{ field.label }}{{ field }}{% for e in field.errors %}<small class="err">{{ e }}</small>{% endfor %}</label>{% endfor %}
-{% for field in profile_form %}<label>{{ field.label }}{{ field }}{% for e in field.errors %}<small class="err">{{ e }}</small>{% endfor %}</label>{% endfor %}
+{% for field in user_form %}<label>{{ field.label }}{{ field }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}{% for e in field.errors %}<small class="err">{{ e }}</small>{% endfor %}</label>{% endfor %}
+{% for field in profile_form %}<label>{{ field.label }}{{ field }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}{% for e in field.errors %}<small class="err">{{ e }}</small>{% endfor %}</label>{% endfor %}
 </div></div>
 <div class="side-c"><div class="card"><h2>{{ user.display_name }}</h2><p class="s">{{ dash_role_label }} · {{ user.email }}</p>
 <button class="btn p big" type="submit">Save changes</button></div></div></form>{% endblock %}

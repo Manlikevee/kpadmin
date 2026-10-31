@@ -2,6 +2,6 @@
 {% block title %}Create account{% endblock %}
 {% block box %}<h1>Create your account</h1><div class="sub">Join the KP Global family.</div>
 <form class="f" method="post" novalidate>{% csrf_token %}{{ form.non_field_errors }}
-{% for field in form %}<label>{{ field.label }}{{ field }}{% for e in field.errors %}<small class="err">{{ e }}</small>{% endfor %}</label>{% endfor %}
+{% for field in form %}<label>{{ field.label }}{{ field }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}{% for e in field.errors %}<small class="err">{{ e }}</small>{% endfor %}</label>{% endfor %}
 <button class="btn p big" type="submit">Create account</button></form>
 <p style="margin-top:16px;text-align:center">Already registered? <a href="{% url 'accounts:login' %}">Sign in</a></p>{% endblock %}

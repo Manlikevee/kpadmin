@@ -113,11 +113,30 @@ class ProfileSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     profile = ProfileSerializer(read_only=True)
     role_display = serializers.CharField(source="get_role_display", read_only=True)
+    branch = serializers.SerializerMethodField()
+    branch_name = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ("id", "username", "email", "first_name", "last_name", "role", "role_display", "profile")
+        fields = ("id", "username", "email", "first_name", "last_name", "role", "role_display", "profile", "branch", "branch_name")
         read_only_fields = ("id", "username", "role", "role_display")
+
+    def get_branch(self, obj):
+        return Member.objects.filter(user=obj).values_list("branch_id", flat=True).first()
+
+    def get_branch_name(self, obj):
+        member = Member.objects.filter(user=obj, branch__isnull=False).select_related("branch").first()
+        return member.branch.name if member else None
+
+
+class MemberBranchField(serializers.PrimaryKeyRelatedField):
+    """Expose Member.branch on User while keeping it writable as a branch primary key."""
+
+    def get_attribute(self, instance):
+        return instance
+
+    def to_representation(self, user):
+        return Member.objects.filter(user=user).values_list("branch_id", flat=True).first()
 
 
 class MeSerializer(serializers.ModelSerializer):
@@ -127,6 +146,8 @@ class MeSerializer(serializers.ModelSerializer):
     bio = serializers.CharField(source="profile.bio", required=False, allow_blank=True, max_length=300)
     image = serializers.ImageField(source="profile.image", required=False, allow_null=True)
     location = serializers.CharField(source="profile.location", required=False, allow_blank=True, max_length=100)
+    branch = MemberBranchField(queryset=Branch.objects.filter(is_active=True), required=False, allow_null=True)
+    branch_name = serializers.SerializerMethodField()
     username = serializers.CharField(required=False, allow_blank=True)
     member_id = serializers.SerializerMethodField()
     role_display = serializers.CharField(source="get_role_display", read_only=True)
@@ -135,7 +156,7 @@ class MeSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ("id", "member_id", "username", "email", "first_name", "last_name", "role", "role_display",
-                  "phone", "bio", "image", "location", "date_joined", "managed_branches")
+                  "phone", "bio", "image", "location", "branch", "branch_name", "date_joined", "managed_branches")
         read_only_fields = ("id", "role", "date_joined")
 
     def get_member_id(self, obj):
@@ -147,6 +168,10 @@ class MeSerializer(serializers.ModelSerializer):
     def get_managed_branches(self, obj):
         return list(branches_for(obj).values_list("pk", flat=True))
 
+    def get_branch_name(self, obj):
+        member = Member.objects.filter(user=obj, branch__isnull=False).select_related("branch").first()
+        return member.branch.name if member else None
+
     def validate_email(self, value):
         value = value.lower()
         if User.objects.filter(email__iexact=value).exclude(pk=self.instance.pk).exists():
@@ -155,6 +180,7 @@ class MeSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated):
         profile_data = validated.pop("profile", {})
+        branch = validated.pop("branch", serializers.empty)
         old_email = instance.email
         for k, v in validated.items():
             setattr(instance, k, v)
@@ -165,6 +191,14 @@ class MeSerializer(serializers.ModelSerializer):
         for k, v in profile_data.items():
             setattr(profile, k, v)
         profile.save()
+        if branch is not serializers.empty:
+            member, created = Member.objects.get_or_create(
+                user=instance,
+                defaults={"full_name": instance.display_name, "email": instance.email, "branch": branch},
+            )
+            if not created and member.branch_id != getattr(branch, "pk", None):
+                member.branch = branch
+                member.save(update_fields=["branch", "updated_at"])
         return instance
 
 
