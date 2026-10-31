@@ -1,0 +1,52 @@
+{% extends "dashboard/base.html" %}
+{% block title %}{% if object %}Edit{% else %}Create{% endif %} rota{% endblock %}
+{% block crumb %}Rota{% endblock %}
+{% block content %}
+<a class="back" href="{% url 'church:rotas' %}">← Rotas</a>
+<div class="ph"><div><h1>{% if object %}Edit{% else %}Create{% endif %} rota</h1><div class="sub">Choose a confirmed service, select its branch, then add the teams and workers who will serve.</div></div></div>
+<form method="post" class="fgrid" novalidate>
+  {% csrf_token %}
+  <div>
+    <section class="card" style="margin-bottom:14px"><div class="f wide">
+      {% if form.non_field_errors %}<div class="flash error">{{ form.non_field_errors }}</div>{% endif %}
+      {% for field in form %}{% include "dashboard/_field.html" %}{% endfor %}
+    </div></section>
+    <section class="card">
+      <div class="bar"><div><h2>Service functions</h2><p class="s">Add one row for each role or team, such as “Choir · Instrumentalists” or “Media · Projection”. You can assign several workers to a function.</p></div><button class="btn" type="button" id="add-position">＋ Add function</button></div>
+      {{ formset.management_form }}
+      {% if formset.non_form_errors %}<div class="flash error">{{ formset.non_form_errors }}</div>{% endif %}
+      <div id="position-rows">
+      {% for f in formset %}
+        <article class="rota-position card" style="margin:12px 0" data-position-row>
+          {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
+          <div class="f wide">
+            {% if f.non_field_errors %}<div class="flash error">{{ f.non_field_errors }}</div>{% endif %}
+            {% for field in f.visible_fields %}{% if field.name != "workers" and field.name != "DELETE" %}{% include "dashboard/_field.html" with field=field %}{% endif %}{% endfor %}
+            {% with workers_field=f.workers %}{% include "dashboard/_field.html" with field=workers_field %}{% endwith %}
+            <div class="rota-selected" aria-live="polite"><b>Selected workers</b><div data-selected-list class="s">No workers selected yet.</div></div>
+            {% if f.DELETE %}<div hidden>{{ f.DELETE }}</div>{% endif %}
+            {% for field in f.visible_fields %}{% if field.name != "workers" and field.name != "DELETE" %}{{ field.errors }}{% endif %}{% endfor %}
+          </div>
+          <button class="btn d" type="button" data-remove-position>Remove function</button>
+        </article>
+      {% endfor %}
+      </div>
+      <template id="empty-position">{% with f=formset.empty_form %}<article class="rota-position card" style="margin:12px 0" data-position-row>{% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}<div class="f wide">{% for field in f.visible_fields %}{% if field.name != "workers" and field.name != "DELETE" %}{% include "dashboard/_field.html" with field=field %}{% endif %}{% endfor %}{% with workers_field=f.workers %}{% include "dashboard/_field.html" with field=workers_field %}{% endwith %}<div class="rota-selected" aria-live="polite"><b>Selected workers</b><div data-selected-list class="s">No workers selected yet.</div></div><div hidden>{{ f.DELETE }}</div></div><button class="btn d" type="button" data-remove-position>Remove function</button></article>{% endwith %}</template>
+      <p class="s">Worker choices are limited to active workers assigned to the branch selected above. Use Ctrl (Windows) or Command (Mac) to select more than one.</p>
+    </section>
+  </div>
+  <aside class="side-c"><div class="card"><div class="f wide"><p class="s">Save when your rota is ready. Workers added to the rota will receive an in-app notification and a push notification if they have push enabled.</p><button class="btn p big" type="submit">{% if object %}Save changes{% else %}Create rota{% endif %}</button><a class="btn big" href="{% url 'church:rotas' %}" style="justify-content:center">Cancel</a></div></div></aside>
+</form>
+<style>.rota-position{position:relative;padding:16px}.rota-position .f{max-width:none}.rota-position .field{min-width:0}.rota-selected{border-top:1px solid var(--line);padding-top:10px}.rota-selected b{font-size:13px}.rota-selected [data-selected-list]{margin-top:6px}.selected-worker{display:inline-flex;margin:3px 6px 3px 0;padding:5px 9px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--text);font-size:12px}.rota-position>[data-remove-position]{margin-top:12px}.rota-position select[multiple]{min-height:132px}</style>
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+  const branch=document.getElementById('id_branch');
+  if(branch) branch.addEventListener('change',function(){const u=new URL(location.href);u.searchParams.set('branch',branch.value);location.href=u.toString();});
+  const rows=document.getElementById('position-rows'), total=document.getElementById('id_positions-TOTAL_FORMS'), empty=document.getElementById('empty-position');
+  function updateSelected(row){const select=row.querySelector('select[multiple]'), target=row.querySelector('[data-selected-list]');if(!select||!target)return;target.replaceChildren();const selected=Array.from(select.selectedOptions);if(!selected.length){target.textContent='No workers selected yet.';return;}selected.forEach(function(option){const chip=document.createElement('span');chip.className='selected-worker';chip.textContent=option.textContent;target.appendChild(chip);});}
+  function bind(row){const select=row.querySelector('select[multiple]');if(select){select.addEventListener('change',()=>updateSelected(row));updateSelected(row);}const remove=row.querySelector('[data-remove-position]');if(remove)remove.addEventListener('click',function(){const del=row.querySelector('input[type=checkbox][name$="-DELETE"]');if(del){del.checked=true;row.hidden=true;}else row.remove();});}
+  rows.querySelectorAll('[data-position-row]').forEach(bind);
+  document.getElementById('add-position').addEventListener('click',function(){const index=parseInt(total.value,10);const html=empty.innerHTML.replaceAll('__prefix__',index);const wrapper=document.createElement('div');wrapper.innerHTML=html.trim();const row=wrapper.firstElementChild;rows.appendChild(row);total.value=index+1;bind(row);row.scrollIntoView({behavior:'smooth',block:'center'});});
+});
+</script>
+{% endblock %}
