@@ -6,7 +6,7 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 
-from church.models import Branch, Devotional, Event, Ministry, PraiseReport
+from church.models import Branch, Devotional, Event, Ministry, PraiseReport, Pastor
 from sermons.views import overlay_notes
 from sermons.youtube import get_service
 
@@ -50,6 +50,11 @@ class HomeView(Page):
 class AboutView(Page):
     template_name = "website/about.html"
     nav = "about"
+
+    def get_context_data(self, **kw):
+        ctx = super().get_context_data(**kw)
+        ctx["pastors"] = Pastor.objects.filter(is_active=True)
+        return ctx
 
 
 class GalleryView(Page):

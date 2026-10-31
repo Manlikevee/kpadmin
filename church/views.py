@@ -15,6 +15,9 @@ from django.utils import timezone
 from django.views import View
 from django.views.decorators.http import require_POST, require_http_methods
 from django.views.generic import CreateView, UpdateView, DeleteView, ListView
+from django.forms import inlineformset_factory
+from django.db import transaction, close_old_connections
+from threading import Thread
 
 from accounts.access import branches_for, can_manage_branch, member_branch_ids, scope_to_branches
 from accounts.mixins import (RoleRequiredMixin, StaffRequiredMixin, SuperAdminRequiredMixin,
@@ -30,7 +33,7 @@ from .crud import ManagedDeleteView, ManagedDetailView, ManagedFormView, Managed
 from .forms import NoteForm, PushNotificationForm
 from .models import (Announcement, Branch, Devotional, Event, GivingRecord, Member, Ministry,
                      Notification, PraiseReport, PrayerRequest, Story, WorkerApplication,
-                     WorkerAssignment, Note)
+                     WorkerAssignment, Note, Rota, RotaPosition, Pastor)
 
 User = get_user_model()
 
@@ -91,6 +94,7 @@ class SuperDashboard(SuperAdminRequiredMixin, View):
             "branch_count": Branch.objects.filter(is_active=True).count(),
             "giving_month": giving,
             "upcoming_events": Event.objects.filter(start_at__gte=now).select_related("branch")[:3],
+            "upcoming_rotas": Rota.objects.filter(event__start_at__gte=now).select_related("event", "branch").order_by("event__start_at")[:3],
             "pending_praise": PraiseReport.objects.filter(status="pending").select_related("user")[:3],
             "pending_prayer_items": PrayerRequest.objects.filter(status="pending")[:3],
             "pending_members": Member.objects.filter(status="pending")[:2],
@@ -133,7 +137,11 @@ class BranchDashboardView(StaffRequiredMixin, View):
 
 class WorkerDashboard(WorkerRequiredMixin, View):
     def get(self, request):
-        return render(request, "dashboard/worker-dashboard.html", portal_context(request, "worker-dashboard"))
+        ctx = portal_context(request, "worker-dashboard")
+        ctx["my_upcoming_rota_positions"] = RotaPosition.objects.filter(
+            workers__user=request.user, rota__event__start_at__gte=timezone.now()
+        ).select_related("rota__event", "rota__branch").prefetch_related("workers__user").order_by("rota__event__start_at")[:8]
+        return render(request, "dashboard/worker-dashboard.html", ctx)
 
 
 class MemberDashboard(RoleRequiredMixin, View):
@@ -448,6 +456,134 @@ class EventForm(EventMixin, ManagedFormView):
 
 class EventDelete(EventMixin, ManagedDeleteView):
     list_url = "church:events"
+
+
+# --------------------------------------------------------------------- rotas
+RotaPositionSet = inlineformset_factory(Rota, RotaPosition, form=forms.RotaPositionForm,
+                                        extra=2, can_delete=True)
+
+
+class RotaListView(LoginRequiredMixin, View):
+    def get(self, request):
+        qs = Rota.objects.select_related("event", "branch").prefetch_related("positions__workers__user")
+        if not request.user.is_super_admin:
+            branch_ids = set(request.user.worker_assignments.filter(is_active=True).values_list("branch_id", flat=True))
+            member = getattr(request.user, "member_record", None)
+            if member and member.branch_id:
+                branch_ids.add(member.branch_id)
+            qs = qs.filter(branch_id__in=branch_ids)
+        return render(request, "dashboard/rotas.html", {"rotas": qs, "page_id": "rotas", "can_manage": request.user.is_super_admin})
+
+
+class RotaFormView(SuperAdminRequiredMixin, View):
+    template_name = "dashboard/rota-form.html"
+
+    def get_object(self):
+        return get_object_or_404(Rota.objects.select_related("branch", "event"), pk=self.kwargs["pk"]) if self.kwargs.get("pk") else None
+
+    def get_forms(self, request, obj, data=None):
+        form = forms.RotaForm(data, instance=obj)
+        branch = obj.branch if obj else None
+        if not obj and request.GET.get("branch"):
+            branch = Branch.objects.filter(pk=request.GET.get("branch")).first()
+            if branch:
+                form.initial["branch"] = branch.pk
+        if data and data.get("branch"):
+            branch = Branch.objects.filter(pk=data.get("branch")).first()
+        formset = RotaPositionSet(data, instance=obj, prefix="positions", form_kwargs={"branch": branch})
+        return form, formset
+
+    def render(self, request, obj, form, formset):
+        return render(request, self.template_name, {"object": obj, "form": form, "formset": formset, "page_id": "rotas"})
+
+    def get(self, request, *args, **kwargs):
+        obj = self.get_object()
+        form, formset = self.get_forms(request, obj)
+        return self.render(request, obj, form, formset)
+
+    def post(self, request, *args, **kwargs):
+        obj = self.get_object()
+        form, formset = self.get_forms(request, obj, request.POST)
+        if form.is_valid() and formset.is_valid():
+            rota = form.save(commit=False)
+            event, branch = form.cleaned_data["event"], form.cleaned_data["branch"]
+            if event.branch_id and event.branch_id != branch.pk:
+                form.add_error("branch", "The selected service is for a different branch.")
+            else:
+                previous_workers = set(obj.positions.values_list("workers__user_id", flat=True)) if obj else set()
+                rota.created_by = rota.created_by or request.user
+                rota.save()
+                formset.instance = rota
+                formset.save()
+                current_workers = set(rota.positions.values_list("workers__user_id", flat=True)) - {None}
+                added_worker_ids = current_workers - previous_workers
+                if added_worker_ids:
+                    worker_users = list(User.objects.filter(pk__in=added_worker_ids, is_active=True))
+                    title = "You’re on the service rota"
+                    message = f"You’ve been assigned to {event.title} at {branch.name} on {event.start_at:%d %b %Y, %I:%M %p}."
+                    for worker in worker_users:
+                        Notification.objects.create(title=title, message=message[:140], audience=Notification.Audience.USER,
+                                                    recipient=worker, created_by=request.user)
+                    def send_rota_pushes(ids, push_title, push_message, rota_id):
+                        close_old_connections()
+                        try:
+                            for worker in User.objects.filter(pk__in=ids, is_active=True):
+                                send_push_to_user(worker, push_title, push_message,
+                                                  {"type": "rota", "rota_id": rota_id})
+                        finally:
+                            close_old_connections()
+                    transaction.on_commit(lambda: Thread(
+                        target=send_rota_pushes,
+                        args=(list(added_worker_ids), title, message[:140], rota.pk),
+                        daemon=True,
+                    ).start())
+                messages.success(request, "Rota saved.")
+                return redirect("church:rotas")
+        return self.render(request, obj, form, formset)
+
+
+class RotaDeleteView(SuperAdminRequiredMixin, View):
+    def post(self, request, pk):
+        get_object_or_404(Rota, pk=pk).delete()
+        messages.success(request, "Rota deleted.")
+        return redirect("church:rotas")
+
+
+# -------------------------------------------------------------------- pastors
+class PastorAdminList(SuperAdminRequiredMixin, View):
+    def get(self, request):
+        return render(request, "dashboard/pastors.html", {
+            "pastors": Pastor.objects.all(), "page_id": "pastors",
+        })
+
+
+class PastorAdminForm(SuperAdminRequiredMixin, View):
+    def get_object(self):
+        return get_object_or_404(Pastor, pk=self.kwargs["pk"]) if self.kwargs.get("pk") else None
+
+    def get(self, request, *args, **kwargs):
+        obj = self.get_object()
+        return render(request, "dashboard/pastor-form.html", {
+            "form": forms.PastorForm(instance=obj), "object": obj, "page_id": "pastors",
+        })
+
+    def post(self, request, *args, **kwargs):
+        obj = self.get_object()
+        form = forms.PastorForm(request.POST, request.FILES, instance=obj)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Pastor saved.")
+            return redirect("church:pastors")
+        return render(request, "dashboard/pastor-form.html", {
+            "form": form, "object": obj, "page_id": "pastors",
+        })
+
+
+class PastorAdminDelete(SuperAdminRequiredMixin, View):
+    def post(self, request, pk):
+        get_object_or_404(Pastor, pk=pk).delete()
+        messages.success(request, "Pastor deleted.")
+        return redirect("church:pastors")
 
 
 @login_required

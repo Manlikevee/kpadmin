@@ -438,7 +438,12 @@ details[open] > summary::after { transform: rotate(45deg) }
 
 /* ---------- live banner + flash messages ---------- */
 .live-banner { background: #d92d20; color: #fff; font-size: 14px }
-.live-banner.soon { background: var(--soft, #f4efe6); color: inherit; border-bottom: 1px solid rgba(0,0,0,.08) }
+.live-banner.soon { background: #fff3dd; color: #2c2115; border-bottom: 1px solid #ead7b5 }
+.live-banner.soon .btn-o { border-color: currentColor; color: inherit }
+@media (prefers-color-scheme:dark) {
+  :root:not([data-theme="light"]) .live-banner.soon { background: #211a12; color: #fff8ed; border-bottom-color: #493923 }
+}
+:root[data-theme="dark"] .live-banner.soon { background: #211a12; color: #fff8ed; border-bottom-color: #493923 }
 .live-banner .wrap { display: flex; align-items: center; gap: 12px; padding-block: 8px; flex-wrap: wrap }
 .live-banner .lt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .live-dot { width: 10px; height: 10px; border-radius: 50%; background: #fff; animation: livepulse 1.2s infinite }

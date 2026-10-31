@@ -78,6 +78,23 @@ class Ministry(TimeStamped):
         return self.name
 
 
+class Pastor(TimeStamped):
+    name = models.CharField(max_length=160)
+    title = models.CharField(max_length=120, default="Pastor")
+    bio = models.TextField(blank=True)
+    # Kept as a fallback for portraits entered before image uploads were added.
+    photo_url = models.URLField(blank=True)
+    photo = models.ImageField(upload_to="pastors/", storage=StoryMediaCloudinaryStorage(), blank=True)
+    display_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["display_order", "name"]
+
+    def __str__(self):
+        return f"{self.name} — {self.title}"
+
+
 class Member(TimeStamped):
     class Status(models.TextChoices):
         ACTIVE = "active", "Active"
@@ -201,6 +218,35 @@ class Event(TimeStamped):
 
     def __str__(self):
         return self.title
+
+
+class Rota(TimeStamped):
+    """A service rota belongs to one scheduled service event."""
+    event = models.OneToOneField(Event, on_delete=models.CASCADE, related_name="rota")
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name="rotas")
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="created_rotas")
+
+    class Meta:
+        ordering = ["event__start_at"]
+
+    def __str__(self):
+        return f"{self.event.title} — {self.branch}"
+
+
+class RotaPosition(TimeStamped):
+    """One service function (for example Prayer or Projection) and its workers."""
+    rota = models.ForeignKey(Rota, on_delete=models.CASCADE, related_name="positions")
+    category = models.CharField(max_length=80, default="Service team")
+    name = models.CharField(max_length=120)
+    workers = models.ManyToManyField(WorkerAssignment, blank=True, related_name="rota_positions")
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "category", "name"]
+
+    def __str__(self):
+        return f"{self.category}: {self.name}"
 
 
 class Announcement(TimeStamped):

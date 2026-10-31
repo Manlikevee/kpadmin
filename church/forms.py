@@ -7,7 +7,7 @@ from push_notifications.models import DevicePushToken
 
 from . import services
 from .models import (Announcement, Branch, Devotional, Event, GivingRecord, Member, Ministry,
-                     Notification, PraiseReport, Story, WorkerApplication, WorkerAssignment, Note)
+                     Notification, PraiseReport, Story, WorkerApplication, WorkerAssignment, Note, Rota, RotaPosition, Pastor)
 
 User = get_user_model()
 
@@ -109,6 +109,17 @@ class MinistryForm(ScopedForm):
         self.fields["leader"].label_from_instance = lambda u: u.display_name
 
 
+class PastorForm(forms.ModelForm):
+    class Meta:
+        model = Pastor
+        fields = ("name", "title", "bio", "photo", "display_order", "is_active")
+        widgets = {"bio": forms.Textarea(attrs={"rows": 4})}
+        help_texts = {
+            "photo": "Upload a pastor portrait (JPG, PNG or WebP).",
+            "display_order": "Lower numbers appear first on the About page.",
+        }
+
+
 class EventForm(ScopedForm):
     side_fields = ("status", "kind", "repeat")
     start_at = dt_field(required=True, label="Starts")
@@ -119,6 +130,40 @@ class EventForm(ScopedForm):
         fields = ("title", "start_at", "end_at", "location", "branch", "description", "capacity",
                   "status", "kind", "repeat")
         widgets = {"description": forms.Textarea(attrs={"rows": 4})}
+
+
+class RotaForm(forms.ModelForm):
+    class Meta:
+        model = Rota
+        fields = ("event", "branch", "notes")
+        widgets = {"notes": forms.Textarea(attrs={"rows": 3})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["event"].queryset = Event.objects.filter(kind=Event.Kind.SERVICE, status=Event.Status.CONFIRMED).select_related("branch").order_by("start_at")
+        self.fields["event"].label_from_instance = lambda e: f"{e.start_at:%d %b %Y %H:%M} · {e.title} · {e.branch or 'All branches'}"
+        self.fields["branch"].queryset = Branch.objects.filter(is_active=True)
+
+
+class RotaPositionForm(forms.ModelForm):
+    class Meta:
+        model = RotaPosition
+        fields = ("category", "name", "workers", "sort_order")
+        widgets = {"workers": forms.SelectMultiple(attrs={"size": 5})}
+
+    def __init__(self, *args, branch=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        qs = WorkerAssignment.objects.filter(is_active=True, branch=branch).select_related("user", "branch").order_by("user__first_name", "user__last_name") if branch else WorkerAssignment.objects.none()
+        self.fields["workers"].queryset = qs
+        self.fields["workers"].label_from_instance = lambda a: f"{a.user.display_name} ({a.title or a.ministry or a.branch})"
+        self.fields["category"].label = "Category or team"
+        self.fields["category"].help_text = "Name the group, for example Choir, Media, Kids Zone or Hospitality. Add another function row for each category/task you need."
+        self.fields["name"].label = "Task or position"
+        self.fields["name"].help_text = "Describe the specific duty, such as Instrumentalists, Projection, Prayer or Greeters."
+        self.fields["workers"].label = "Workers for this task"
+        self.fields["workers"].help_text = "Choose one or more active workers from this branch. The selected names appear below."
+        self.fields["sort_order"].label = "Display order"
+        self.fields["sort_order"].help_text = "Optional ordering number; lower numbers appear first."
 
 
 class AnnouncementForm(ScopedForm):

@@ -15,7 +15,7 @@ from accounts.services import create_member_account
 from bible.models import BibleTranslation
 from church import services
 from church.models import (Announcement, Branch, Devotional, Event, Member, Ministry, Notification,
-                           PrayerRequest, WorkerApplication, WorkerAssignment, Story, Note)
+                           PrayerRequest, WorkerApplication, WorkerAssignment, Story, Note, Rota, RotaPosition, Pastor)
 
 User = get_user_model()
 
@@ -520,3 +520,36 @@ class NoteSerializer(serializers.ModelSerializer):
             )
 
         return value
+
+
+class RotaPositionSerializer(serializers.ModelSerializer):
+    workers = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RotaPosition
+        fields = ("id", "category", "name", "sort_order", "workers")
+
+    def get_workers(self, obj):
+        return [{"id": a.user_id, "name": a.user.display_name, "assignment_id": a.pk}
+                for a in obj.workers.select_related("user")]
+
+
+class RotaSerializer(serializers.ModelSerializer):
+    event_title = serializers.CharField(source="event.title", read_only=True)
+    starts_at = serializers.DateTimeField(source="event.start_at", read_only=True)
+    branch_name = serializers.CharField(source="branch.name", read_only=True)
+    positions = RotaPositionSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Rota
+        fields = ("id", "event", "event_title", "starts_at", "branch", "branch_name", "notes", "positions")
+
+
+class PastorSerializer(serializers.ModelSerializer):
+    photo = serializers.ImageField(required=False, allow_null=True)
+    photo_url = serializers.URLField(read_only=True)
+
+    class Meta:
+        model = Pastor
+        fields = ("id", "name", "title", "bio", "photo", "photo_url", "display_order", "is_active", "created_at", "updated_at")
+        read_only_fields = ("id", "created_at", "updated_at")

@@ -42,6 +42,7 @@ def dashboard_nav(request):
                         None,
                         "dashboard",
                     ),
+                    ("church:pastors", "Meet our leaders", "user", None, "pastors"),
                 ],
             ),
             (
@@ -64,6 +65,7 @@ def dashboard_nav(request):
                         None,
                         "events",
                     ),
+                    ("church:rotas", "Service Rotas", "events", None, "rotas"),
                     (
                         "church:prayer_requests",
                         "Prayer Requests",

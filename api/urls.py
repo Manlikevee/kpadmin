@@ -13,6 +13,8 @@ router.register("members", views.MemberViewSet, basename="member")
 router.register("workers", views.WorkerViewSet, basename="worker")
 router.register("worker-applications", views.WorkerApplicationViewSet, basename="worker-application")
 router.register("events", views.EventViewSet, basename="event")
+router.register("rotas", views.RotaViewSet, basename="rota")
+router.register("pastors", views.PastorViewSet, basename="pastor")
 router.register("announcements", views.AnnouncementViewSet, basename="announcement")
 router.register("devotionals", views.DevotionalViewSet, basename="devotional")
 router.register("notifications", views.NotificationViewSet, basename="notification")
@@ -26,6 +28,7 @@ router.register("admin/giving", av.GivingViewSet, basename="admin-giving")
 
 urlpatterns = [
     path("", views.ApiRoot.as_view(), name="api-root"),
+    path("branches/", views.PublicBranchListView.as_view(), name="api-public-branches"),
     path("auth/register/", views.RegisterView.as_view(), name="api-register"),
     path("auth/token/", views.LoginView.as_view(), name="api-token"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="api-token-refresh"),

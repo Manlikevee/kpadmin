@@ -44,6 +44,16 @@ urlpatterns = [
     path("events/<int:pk>/edit/", v.EventForm.as_view(), name="event_edit"),
     path("events/<int:pk>/delete/", v.EventDelete.as_view(), name="event_delete"),
     path("events/<int:pk>/cancel/", v.event_cancel, name="event_cancel"),
+    # rotas
+    path("rotas/", v.RotaListView.as_view(), name="rotas"),
+    path("rotas/new/", v.RotaFormView.as_view(), name="rota_create"),
+    path("rotas/<int:pk>/edit/", v.RotaFormView.as_view(), name="rota_edit"),
+    path("rotas/<int:pk>/delete/", v.RotaDeleteView.as_view(), name="rota_delete"),
+    # pastors / Meet our leaders
+    path("pastors/", v.PastorAdminList.as_view(), name="pastors"),
+    path("pastors/new/", v.PastorAdminForm.as_view(), name="pastor_create"),
+    path("pastors/<int:pk>/edit/", v.PastorAdminForm.as_view(), name="pastor_edit"),
+    path("pastors/<int:pk>/delete/", v.PastorAdminDelete.as_view(), name="pastor_delete"),
     # announcements
     path("announcements/", v.AnnouncementList.as_view(), name="announcements"),
     path("announcements/new/", v.AnnouncementForm.as_view(), name="announcement_create"),

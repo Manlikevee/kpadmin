@@ -12,6 +12,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
@@ -20,7 +21,7 @@ from accounts.access import branches_for, member_branch_ids, scope_to_branches
 from bible.models import BibleTranslation
 from church import services
 from church.models import (Announcement, Branch, Devotional, Event, Member, Notification, NotificationRead,
-                           PrayerRequest, WorkerApplication, WorkerAssignment, Story, Note)
+                           PrayerRequest, WorkerApplication, WorkerAssignment, Story, Note, Rota, Pastor)
 from church.views import DevotionalDetail
 from core.models import SiteSettings
 from sermons.views import overlay_notes
@@ -42,7 +43,7 @@ class ApiRoot(APIView):
         base = request.build_absolute_uri("/api/v1/")
         names = ["auth/register/", "auth/token/", "auth/token/refresh/", "auth/email-code/", "auth/email-code/verify/",
                  "auth/password-reset/", "auth/password-reset/verify/", "auth/password-reset/confirm/", "me/",
-                 "me/password/", "branches/", "members/", "workers/", "worker-applications/", "events/",
+                 "me/password/", "branches/", "public/branches/", "members/", "workers/", "worker-applications/", "events/", "rotas/", "pastors/",
                  "announcements/", "sermons/", "live/", "devotionals/", "notifications/", "bible/versions/",
                  "prayer-requests/", "site/", "dashboard/", "ministries/", "praise-reports/", "stories/", "notes/",
                  "push-tokens/register/", "admin/users/", "admin/prayer-requests/", "admin/giving/",
@@ -194,6 +195,16 @@ class BranchViewSet(viewsets.ModelViewSet):
         return qs.filter(is_active=True)
 
 
+class PublicBranchListView(ListAPIView):
+    """Unpaginated public directory of active branches."""
+    serializer_class = s.BranchSerializer
+    permission_classes = [permissions.AllowAny]
+    pagination_class = None
+
+    def get_queryset(self):
+        return Branch.objects.filter(is_active=True).order_by("name")
+
+
 class MemberViewSet(viewsets.ModelViewSet):
     """Staff only; a branch admin only ever sees/changes their own branches' members."""
 
@@ -312,6 +323,38 @@ class EventViewSet(viewsets.ModelViewSet):
         page = self.paginate_queryset(qs)
         ser = self.get_serializer(page if page is not None else qs, many=True)
         return self.get_paginated_response(ser.data) if page is not None else Response(ser.data)
+
+
+class RotaViewSet(viewsets.ModelViewSet):
+    serializer_class = s.RotaSerializer
+    permission_classes = [permissions.IsAuthenticated, ReadAnyWriteSuper]
+    http_method_names = ["get", "post", "put", "patch", "delete", "head", "options"]
+
+    def get_queryset(self):
+        qs = Rota.objects.select_related("event", "branch").prefetch_related("positions__workers__user")
+        u = self.request.user
+        if u.is_super_admin:
+            return qs
+        branch_ids = u.worker_assignments.filter(is_active=True).values_list("branch_id", flat=True)
+        member = getattr(u, "member_record", None)
+        if member and member.branch_id:
+            branch_ids = list(branch_ids) + [member.branch_id]
+        return qs.filter(branch_id__in=branch_ids)
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+
+class PastorViewSet(viewsets.ModelViewSet):
+    serializer_class = s.PastorSerializer
+    permission_classes = [ReadAnyWriteSuper]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get_queryset(self):
+        qs = Pastor.objects.all()
+        if not self.request.user.is_authenticated or not self.request.user.is_super_admin:
+            return qs.filter(is_active=True)
+        return qs
 
 
 class AnnouncementViewSet(viewsets.ModelViewSet):
