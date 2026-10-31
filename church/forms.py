@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 from django.utils import timezone
 
 from accounts.access import branches_for
@@ -133,16 +134,33 @@ class EventForm(ScopedForm):
 
 
 class RotaForm(forms.ModelForm):
+    service_at = dt_field(required=True, label="Service date and time")
+
     class Meta:
         model = Rota
-        fields = ("event", "branch", "notes")
+        fields = ("event", "service_at", "branch", "notes")
         widgets = {"notes": forms.Textarea(attrs={"rows": 3})}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["event"].queryset = Event.objects.filter(kind=Event.Kind.SERVICE, status=Event.Status.CONFIRMED).select_related("branch").order_by("start_at")
-        self.fields["event"].label_from_instance = lambda e: f"{e.start_at:%d %b %Y %H:%M} · {e.title} · {e.branch or 'All branches'}"
+        events = Event.objects.filter(kind=Event.Kind.SERVICE, status=Event.Status.CONFIRMED).filter(
+            Q(start_at__gte=timezone.now()) | ~Q(repeat=Event.Repeat.NONE)
+        ).select_related("branch").order_by("start_at")
+        self.fields["event"].queryset = events
+        def event_label(event):
+            anchor = timezone.localtime(event.start_at)
+            schedule = (f"{event.get_repeat_display()} · {anchor:%a %H:%M}" if event.repeat != Event.Repeat.NONE
+                        else anchor.strftime("%d %b %Y %H:%M"))
+            return f"{schedule} · {event.title} · {event.branch or 'All branches'}"
+        self.fields["event"].label_from_instance = event_label
+        self.fields["event"].help_text = "Recurring weekly and monthly service events remain selectable even when their first date has passed."
+        self.fields["service_at"].help_text = "Choose the actual upcoming occurrence. For repeating services, keep the same weekday or monthly date and service time."
         self.fields["branch"].queryset = Branch.objects.filter(is_active=True)
+        self.event_occurrences = [
+            {"id": event.pk, "service_at": event.next_service_occurrence().strftime(DT_FORMAT)
+             if event.next_service_occurrence() else ""}
+            for event in events
+        ]
 
 
 class RotaPositionForm(forms.ModelForm):

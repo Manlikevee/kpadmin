@@ -94,7 +94,7 @@ class SuperDashboard(SuperAdminRequiredMixin, View):
             "branch_count": Branch.objects.filter(is_active=True).count(),
             "giving_month": giving,
             "upcoming_events": Event.objects.filter(start_at__gte=now).select_related("branch")[:3],
-            "upcoming_rotas": Rota.objects.filter(event__start_at__gte=now).select_related("event", "branch").order_by("event__start_at")[:3],
+            "upcoming_rotas": Rota.objects.filter(service_at__gte=now).select_related("event", "branch").order_by("service_at")[:3],
             "pending_praise": PraiseReport.objects.filter(status="pending").select_related("user")[:3],
             "pending_prayer_items": PrayerRequest.objects.filter(status="pending")[:3],
             "pending_members": Member.objects.filter(status="pending")[:2],
@@ -139,8 +139,8 @@ class WorkerDashboard(WorkerRequiredMixin, View):
     def get(self, request):
         ctx = portal_context(request, "worker-dashboard")
         ctx["my_upcoming_rota_positions"] = RotaPosition.objects.filter(
-            workers__user=request.user, rota__event__start_at__gte=timezone.now()
-        ).select_related("rota__event", "rota__branch").prefetch_related("workers__user").order_by("rota__event__start_at")[:8]
+            workers__user=request.user, rota__service_at__gte=timezone.now()
+        ).select_related("rota__event", "rota__branch").prefetch_related("workers__user").order_by("rota__service_at")[:8]
         return render(request, "dashboard/worker-dashboard.html", ctx)
 
 
@@ -465,12 +465,10 @@ RotaPositionSet = inlineformset_factory(Rota, RotaPosition, form=forms.RotaPosit
 
 class RotaListView(LoginRequiredMixin, View):
     def get(self, request):
-        qs = Rota.objects.select_related("event", "branch").prefetch_related("positions__workers__user")
+        qs = Rota.objects.select_related("event", "branch").prefetch_related("positions__workers__user").order_by("service_at")
         if not request.user.is_super_admin:
-            branch_ids = set(request.user.worker_assignments.filter(is_active=True).values_list("branch_id", flat=True))
-            member = getattr(request.user, "member_record", None)
-            if member and member.branch_id:
-                branch_ids.add(member.branch_id)
+            branch_ids = set(member_branch_ids(request.user))
+            branch_ids.update(branches_for(request.user).values_list("pk", flat=True))
             qs = qs.filter(branch_id__in=branch_ids)
         return render(request, "dashboard/rotas.html", {"rotas": qs, "page_id": "rotas", "can_manage": request.user.is_super_admin})
 
@@ -494,7 +492,8 @@ class RotaFormView(SuperAdminRequiredMixin, View):
         return form, formset
 
     def render(self, request, obj, form, formset):
-        return render(request, self.template_name, {"object": obj, "form": form, "formset": formset, "page_id": "rotas"})
+        return render(request, self.template_name, {"object": obj, "form": form, "formset": formset,
+                                                     "event_occurrences": form.event_occurrences, "page_id": "rotas"})
 
     def get(self, request, *args, **kwargs):
         obj = self.get_object()
@@ -520,7 +519,7 @@ class RotaFormView(SuperAdminRequiredMixin, View):
                 if added_worker_ids:
                     worker_users = list(User.objects.filter(pk__in=added_worker_ids, is_active=True))
                     title = "You’re on the service rota"
-                    message = f"You’ve been assigned to {event.title} at {branch.name} on {event.start_at:%d %b %Y, %I:%M %p}."
+                    message = f"You’ve been assigned to {event.title} at {branch.name} on {rota.service_at:%d %b %Y, %I:%M %p}."
                     for worker in worker_users:
                         Notification.objects.create(title=title, message=message[:140], audience=Notification.Audience.USER,
                                                     recipient=worker, created_by=request.user)

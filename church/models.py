@@ -1,6 +1,9 @@
 from decimal import Decimal
+from calendar import monthrange
+from datetime import datetime, timedelta
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import Q
@@ -219,19 +222,78 @@ class Event(TimeStamped):
     def __str__(self):
         return self.title
 
+    def next_service_occurrence(self, after=None):
+        """Return the next local occurrence of this event, including recurring events anchored in the past."""
+        after = after or timezone.now()
+        anchor = timezone.localtime(self.start_at)
+        local_after = timezone.localtime(after)
+        if self.repeat == self.Repeat.NONE:
+            return self.start_at if self.start_at >= after else None
+
+        anchor_time = anchor.time().replace(tzinfo=None)
+        if self.repeat == self.Repeat.WEEKLY:
+            days = (anchor.weekday() - local_after.weekday()) % 7
+            candidate_date = local_after.date() + timedelta(days=days)
+            candidate = timezone.make_aware(datetime.combine(candidate_date, anchor_time))
+            if candidate < after:
+                candidate = timezone.make_aware(datetime.combine(candidate_date + timedelta(days=7), anchor_time))
+            return candidate
+
+        if self.repeat == self.Repeat.MONTHLY:
+            for offset in range(36):
+                month_index = local_after.month - 1 + offset
+                year = local_after.year + month_index // 12
+                month = month_index % 12 + 1
+                if anchor.day > monthrange(year, month)[1]:
+                    continue
+                candidate = timezone.make_aware(datetime.combine(datetime(year, month, anchor.day).date(), anchor_time))
+                if candidate >= after:
+                    return candidate
+        return None
+
+    def matches_service_occurrence(self, occurrence):
+        """Check that a chosen date follows this event's one-off or repeat schedule."""
+        if not occurrence:
+            return False
+        anchor = timezone.localtime(self.start_at)
+        selected = timezone.localtime(occurrence)
+        same_time = (selected.hour, selected.minute) == (anchor.hour, anchor.minute)
+        if self.repeat == self.Repeat.WEEKLY:
+            return selected.weekday() == anchor.weekday() and same_time
+        if self.repeat == self.Repeat.MONTHLY:
+            return selected.day == anchor.day and same_time
+        return selected.date() == anchor.date() and same_time
+
 
 class Rota(TimeStamped):
-    """A service rota belongs to one scheduled service event."""
-    event = models.OneToOneField(Event, on_delete=models.CASCADE, related_name="rota")
+    """A service rota belongs to one occurrence of a scheduled service event."""
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="rotas")
+    service_at = models.DateTimeField()
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name="rotas")
     notes = models.TextField(blank=True)
     created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="created_rotas")
 
     class Meta:
-        ordering = ["event__start_at"]
+        ordering = ["service_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["event", "service_at", "branch"], name="uniq_rota_event_date_branch"),
+        ]
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        if self.event_id and self.service_at:
+            if self.service_at < timezone.now():
+                errors["service_at"] = "Choose a future service date."
+            elif not self.event.matches_service_occurrence(self.service_at):
+                errors["service_at"] = "Choose a date and time that matches this service schedule."
+        if self.event_id and self.branch_id and self.event.branch_id and self.event.branch_id != self.branch_id:
+            errors["branch"] = "The selected service belongs to a different branch."
+        if errors:
+            raise ValidationError(errors)
 
     def __str__(self):
-        return f"{self.event.title} — {self.branch}"
+        return f"{self.event.title} — {self.service_at:%d %b %Y} — {self.branch}"
 
 
 class RotaPosition(TimeStamped):

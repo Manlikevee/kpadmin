@@ -3,9 +3,10 @@
 {% block crumb %}Rota{% endblock %}
 {% block content %}
 <a class="back" href="{% url 'church:rotas' %}">← Rotas</a>
-<div class="ph"><div><h1>{% if object %}Edit{% else %}Create{% endif %} rota</h1><div class="sub">Choose a confirmed service, select its branch, then add the teams and workers who will serve.</div></div></div>
+<div class="ph"><div><h1>{% if object %}Edit{% else %}Create{% endif %} rota</h1><div class="sub">Choose a confirmed service, select the actual date of its next occurrence, then add the teams and workers who will serve. Weekly and monthly services remain available.</div></div></div>
 <form method="post" class="fgrid" novalidate>
   {% csrf_token %}
+  {{ event_occurrences|json_script:"rota-event-occurrences" }}
   <div>
     <section class="card" style="margin-bottom:14px"><div class="f wide">
       {% if form.non_field_errors %}<div class="flash error">{{ form.non_field_errors }}</div>{% endif %}
@@ -40,6 +41,10 @@
 <style>.rota-position{position:relative;padding:16px}.rota-position .f{max-width:none}.rota-position .field{min-width:0}.rota-selected{border-top:1px solid var(--line);padding-top:10px}.rota-selected b{font-size:13px}.rota-selected [data-selected-list]{margin-top:6px}.selected-worker{display:inline-flex;margin:3px 6px 3px 0;padding:5px 9px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--text);font-size:12px}.rota-position>[data-remove-position]{margin-top:12px}.rota-position select[multiple]{min-height:132px}</style>
 <script>
 document.addEventListener('DOMContentLoaded',function(){
+  const eventSelect=document.getElementById('id_event'), serviceAt=document.getElementById('id_service_at');
+  const occurrenceData=document.getElementById('rota-event-occurrences');
+  const occurrences=occurrenceData?JSON.parse(occurrenceData.textContent):[];
+  if(eventSelect&&serviceAt) eventSelect.addEventListener('change',function(){const choice=occurrences.find(item=>String(item.id)===eventSelect.value);if(choice&&choice.service_at)serviceAt.value=choice.service_at;});
   const branch=document.getElementById('id_branch');
   if(branch) branch.addEventListener('change',function(){const u=new URL(location.href);u.searchParams.set('branch',branch.value);location.href=u.toString();});
   const rows=document.getElementById('position-rows'), total=document.getElementById('id_positions-TOTAL_FORMS'), empty=document.getElementById('empty-position');

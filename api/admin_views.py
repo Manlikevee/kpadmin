@@ -119,7 +119,7 @@ class DashboardView(APIView):
             "upcoming_events": s.EventSerializer(
                 Event.objects.filter(start_at__gte=now).select_related("branch")[:3], many=True, context=ctx).data,
             "upcoming_rotas": s.RotaSerializer(
-                Rota.objects.filter(event__start_at__gte=now).select_related("event", "branch")
+                Rota.objects.filter(service_at__gte=now).select_related("event", "branch")
                 .prefetch_related("positions__workers__user")[:5], many=True, context=ctx,
             ).data,
             "pending_praise_reports": a.PraiseReportAdminSerializer(
@@ -164,7 +164,7 @@ class DashboardView(APIView):
             "pending_applications": s.WorkerApplicationSerializer(pending, many=True, context=ctx).data,
             "upcoming_events": s.EventSerializer(events.select_related("branch")[:3], many=True, context=ctx).data,
             "upcoming_rotas": s.RotaSerializer(
-                Rota.objects.filter(branch=branch, event__start_at__gte=now)
+                Rota.objects.filter(branch=branch, service_at__gte=now)
                 .select_related("event", "branch").prefetch_related("positions__workers__user")[:5],
                 many=True, context=ctx,
             ).data,
@@ -196,7 +196,7 @@ class DashboardView(APIView):
                 Event.objects.filter(in_scope, status="confirmed", start_at__gte=now).select_related("branch")[:5],
                 many=True, context=ctx).data,
             "upcoming_rotas": s.RotaSerializer(
-                Rota.objects.filter(branch_id__in=member_branch_ids(user), event__start_at__gte=now)
+                Rota.objects.filter(branch_id__in=member_branch_ids(user), service_at__gte=now)
                 .select_related("event", "branch").prefetch_related("positions__workers__user")[:5],
                 many=True, context=ctx,
             ).data,

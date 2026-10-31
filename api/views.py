@@ -343,7 +343,7 @@ class RotaViewSet(viewsets.ModelViewSet):
             branch_ids.update(branches_for(u).values_list("pk", flat=True))
             scoped = qs.filter(branch_id__in=branch_ids)
         if self.request.query_params.get("upcoming", "").lower() in ("1", "true", "yes"):
-            scoped = scoped.filter(event__start_at__gte=timezone.now())
+            scoped = scoped.filter(service_at__gte=timezone.now())
         return scoped
 
     def perform_create(self, serializer):
@@ -364,7 +364,7 @@ class RotaViewSet(viewsets.ModelViewSet):
             return
         workers = list(User.objects.filter(pk__in=worker_ids, is_active=True))
         title = "You’re on the service rota"
-        message = f"You’ve been assigned to {rota.event.title} at {rota.branch.name} on {rota.event.start_at:%d %b %Y, %I:%M %p}."
+        message = f"You’ve been assigned to {rota.event.title} at {rota.branch.name} on {rota.service_at:%d %b %Y, %I:%M %p}."
         for worker in workers:
             Notification.objects.create(title=title, message=message[:140], audience=Notification.Audience.USER,
                                         recipient=worker, created_by=self.request.user)

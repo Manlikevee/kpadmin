@@ -7,12 +7,17 @@ from church.models import (Announcement, Event, GivingRecord, Member, Ministry, 
 
 
 class EventFilter(df.FilterSet):
-    date_from = df.DateTimeFilter(field_name="start_at", lookup_expr="gte")
+    date_from = df.DateTimeFilter(method="filter_date_from")
     date_to = df.DateTimeFilter(field_name="start_at", lookup_expr="lte")
 
     class Meta:
         model = Event
         fields = ("branch", "kind", "status", "date_from", "date_to")
+
+    def filter_date_from(self, queryset, name, value):
+        # Recurring services keep their first occurrence as start_at, which may
+        # be in the past even though their next weekly/monthly occurrence is ahead.
+        return queryset.filter(Q(start_at__gte=value) | (~Q(repeat=Event.Repeat.NONE) & Q(start_at__lt=value)))
 
 
 class MemberFilter(df.FilterSet):
