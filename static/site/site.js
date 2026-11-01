@@ -130,15 +130,33 @@
   }
 })();
 
-/* live banner: re-check every 2 minutes so it appears/disappears without a reload */
+/* Live status only polls during a scheduled event window. */
 (function () {
   var b = document.getElementById('liveBanner'); if (!b || !window.fetch) return;
+  var windows = [], eventStart = Date.parse(b.getAttribute('data-poll-start') || ''), eventEnd = Date.parse(b.getAttribute('data-poll-end') || '');
+  if (eventStart && eventEnd) windows.push([eventStart, eventEnd]);
+  var liveNow = b.getAttribute('data-live-now') === 'true', timer = null, interval = null;
+  function addYouTubeSchedule(value) {
+    var time = document.getElementById('liveWhen'), scheduled = value ? Date.parse(value) : (time && Date.parse(time.getAttribute('datetime') || ''));
+    if (!scheduled || isNaN(scheduled)) return;
+    windows.push([scheduled - 6 * 60 * 60 * 1000, scheduled + 6 * 60 * 60 * 1000]);
+  }
+  addYouTubeSchedule();
+  function eligible() { var now = Date.now(); return liveNow || windows.some(function (window) { return now >= window[0] && now <= window[1]; }); }
+  function schedule() {
+    if (interval) { clearInterval(interval); interval = null; }
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (eligible()) { poll(); interval = setInterval(function () { if (eligible()) poll(); else schedule(); }, 120000); return; }
+    var now = Date.now(), nextStart = windows.map(function (window) { return window[0]; }).filter(function (start) { return start > now; }).sort(function (a, b) { return a - b; })[0];
+    if (nextStart) timer = setTimeout(schedule, Math.min(nextStart - now, 2147480000));
+  }
   function poll() {
+    if (!eligible()) return;
     fetch('/sermons/live-status/', { headers: { Accept: 'application/json' } }).then(function (r) { return r.json() }).then(function (d) {
-      if (d.live) { b.hidden = false; b.classList.remove('soon'); b.querySelector('.wrap').innerHTML = '<span class="live-dot"></span><b>LIVE NOW</b><span class="lt"></span><a class="btn btn-p btn-s" target="_blank" rel="noopener">Watch live</a>'; b.querySelector('.lt').textContent = d.live.title; b.querySelector('a').href = d.live.watch_url }
-      else if (!d.upcoming) { b.hidden = true }
+      if (d.live) { liveNow = true; b.hidden = false; b.classList.remove('soon'); b.querySelector('.wrap').innerHTML = '<span class="live-dot"></span><b>LIVE NOW</b><span class="lt"></span><a class="btn btn-p btn-s" target="_blank" rel="noopener">Watch live</a>'; b.querySelector('.lt').textContent = d.live.title; b.querySelector('a').href = d.live.watch_url }
+      else { liveNow = false; b.setAttribute('data-live-now', 'false'); if (!d.upcoming) b.hidden = true; if (d.upcoming) addYouTubeSchedule(d.upcoming.scheduled_start); schedule(); }
     }).catch(function () { });
   }
-  setInterval(poll, 120000);
+  schedule();
   var w = document.getElementById('liveWhen'); if (w) { var t = new Date(w.getAttribute('datetime')); if (!isNaN(t)) w.textContent = t.toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit', day: 'numeric', month: 'short' }) }
 })();

@@ -271,6 +271,8 @@ class Rota(TimeStamped):
     def clean(self):
         super().clean()
         errors = {}
+        if self.service_at:
+            self.service_until = self.service_at + timedelta(hours=6)
         if self.service_until and self.service_until < timezone.now():
             errors["service_until"] = "Choose a current or future rota period."
         elif not self.pk and self.service_at and self.service_at < timezone.now():

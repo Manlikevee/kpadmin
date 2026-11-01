@@ -1,4 +1,5 @@
 import re
+from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -581,7 +582,7 @@ class RotaSerializer(serializers.ModelSerializer):
     event_title = serializers.CharField(source="event.title", read_only=True)
     starts_at = serializers.DateTimeField(source="service_at", read_only=True)
     service_at = serializers.DateTimeField(required=True)
-    service_until = serializers.DateTimeField(required=True)
+    service_until = serializers.DateTimeField(read_only=True)
     branch_name = serializers.CharField(source="branch.name", read_only=True)
     positions = RotaPositionSerializer(many=True, required=False)
 
@@ -597,10 +598,11 @@ class RotaSerializer(serializers.ModelSerializer):
         now = timezone.now()
         if not self.instance and service_at and service_at < now:
             raise serializers.ValidationError({"service_at": "Choose a future service date."})
+        if service_at:
+            service_until = service_at + timedelta(hours=6)
+            attrs["service_until"] = service_until
         if service_until and service_until < now:
-            raise serializers.ValidationError({"service_until": "Choose a current or future rota period."})
-        if service_at and service_until and service_until < service_at:
-            raise serializers.ValidationError({"service_until": "The period end must be on or after its start."})
+            raise serializers.ValidationError({"service_at": "Choose a current or future rota start."})
         if event and branch and service_at and service_until:
             existing = Rota.objects.filter(
                 event=event,

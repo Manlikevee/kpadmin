@@ -135,7 +135,7 @@ class EventForm(ScopedForm):
 
 class RotaForm(forms.ModelForm):
     service_at = dt_field(required=True, label="Service date and time")
-    service_until = dt_field(required=True, label="Rota period ends")
+    service_until = dt_field(required=False, label="Rota ends (six hours later)")
 
     class Meta:
         model = Rota
@@ -157,7 +157,8 @@ class RotaForm(forms.ModelForm):
         self.fields["event"].help_text = "Recurring weekly and monthly service events remain selectable even when their first date has passed."
         self.fields["service_at"].label = "Rota period starts"
         self.fields["service_at"].help_text = "Choose the weekend or future period this rota will cover. Create a separate rota for each changing weekly schedule."
-        self.fields["service_until"].help_text = "Choose the last date covered by this rota. Use the same date for a single-day service or Sunday for a full weekend."
+        self.fields["service_until"].widget.attrs["readonly"] = True
+        self.fields["service_until"].help_text = "Automatically set to six hours after the rota start."
         self.fields["branch"].queryset = Branch.objects.filter(is_active=True)
         self.event_occurrences = [
             {"id": event.pk, "start_at": timezone.localtime(event.start_at).strftime(DT_FORMAT),

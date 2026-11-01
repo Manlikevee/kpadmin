@@ -85,7 +85,7 @@ Self-registration always creates a *Member*. Roles are changed by administrators
 `sermons/youtube.py` is the single YouTube integration (uploads playlist → `videos.list` for details and `liveStreamingDetails`).
 * Sermon pages are cached ~15 min; live status ~2 min; every fresh result also writes a 7-day *stale* copy used when YouTube is down or the quota is exhausted (quota errors pause API calls for 1 hour; other failures back off for 30 s).
 * Pagination uses YouTube page tokens, so the archive goes past 50 videos.
-* A **LIVE NOW** banner sits above the navbar on every public page, polls `/sermons/live-status/` every 2 minutes and hides itself when the broadcast ends. An "upcoming live" variant shows scheduled streams.
+* A **LIVE NOW** banner sits above the navbar on every public page. It polls `/sermons/live-status/` every 2 minutes only during a scheduled event or service window (or while live), then stops. An "upcoming live" variant shows scheduled streams.
 * Live detection checks the 10 latest uploads (cheap: ~2 quota units). If your channel's streams don't appear in the uploads playlist, extend `get_live_status` with a `search.list?eventType=live` call (100 units; cache it).
 * Use `REDIS_URL` in production so all workers share the cache (the default per-process memory cache is fine for development).
 
