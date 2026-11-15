@@ -15,7 +15,7 @@
                     </svg></a><a class="btn btn-g" href="{% url 'sermons:list' %}">Watch the latest sermon</a></div>
         </div>
         <div class="medal"><img src="{% static 'site/logo.png' %}" alt="KP Global flame logo" width="420" height="420">
-            <div class="next"><small>Next Sunday service</small><b id="cdDate">Sunday · 9:00 AM</b>
+            <div class="next"><small>Next Sunday service</small><b id="cdDate">Sunday · 10:00 AM</b>
                 <div class="cd" id="cd" aria-label="Countdown">
                     <div><strong>00</strong><span>days</span></div>
                     <div><strong>00</strong><span>hours</span></div>
@@ -26,18 +26,50 @@
         </div>
     </div>
 </section>
+
+<style>
+    .friday-time {
+    /* width: 100%; */
+    /* box-sizing: border-box; */
+}
+</style>
+
 <section class="times" aria-label="Service times">
-    <div class="wrap">
-        <div class="time"><span class="d">Sun</span>
-            <div><b>Worship Service</b><span>10am (HQ, Luton, Coventry, London, Abuja) Northampton 4pm</span></div>
-        </div>
-        <div class="time"><span class="d">Tue</span>
-            <div><b>Bible Study</b><span>6:30 PM · Online and in person</span></div>
-        </div>
-        <div class="time"><span class="d">Thurs</span>
-            <div><b>Cell</b><span>6:30-7:30 across various campuses and postcodes</span></div>
+<div class="wrap">
+    <div class="time">
+        <span class="d">Sun</span>
+        <div>
+            <b>Worship Service</b>
+            <span>10am (HQ, Luton, Coventry, London, Abuja) · Northampton 4pm</span>
         </div>
     </div>
+
+    <div class="time">
+        <span class="d">Tue</span>
+        <div>
+            <b>Bible Study</b>
+            <span>7:00 PM · Luton in person</span>
+        </div>
+    </div>
+
+    <div class="time">
+        <span class="d">Thurs</span>
+        <div>
+            <b>Bible Study</b>
+            <span>7:00 PM · HQ and other campuses online</span>
+        </div>
+    </div>
+
+    <div class="time friday-time">
+    <span class="d">Fri</span>
+    <div>
+        <b>Cell</b>
+        <span>6:30–7:30 PM · Across various campuses and postcodes</span>
+    </div>
+</div>
+</div>
+
+
 </section>
 
 <section class="sec">
