@@ -1,4 +1,5 @@
-{% extends "website/base.html" %}{% load static %}
+{% extends "website/base.html" %}
+{% load static %}
 {% block title %}KP Global · Come as you are{% endblock %}
 {% block description %}KP Global church. Join us for worship, sermons, events and community.{% endblock %}
 {% block content %}
@@ -27,49 +28,40 @@
     </div>
 </section>
 
-<style>
-    .friday-time {
-    /* width: 100%; */
-    /* box-sizing: border-box; */
-}
-</style>
-
 <section class="times" aria-label="Service times">
-<div class="wrap">
-    <div class="time">
-        <span class="d">Sun</span>
-        <div>
-            <b>Worship Service</b>
-            <span>10am (HQ, Luton, Coventry, London, Abuja) · Northampton 4pm</span>
+    <div class="wrap">
+        <div class="time">
+            <span class="d">Sun</span>
+            <div>
+                <b>Worship Service</b>
+                <span>10am (HQ, Luton, Coventry, London, Abuja) · Northampton 4pm</span>
+            </div>
+        </div>
+
+        <div class="time">
+            <span class="d">Tue</span>
+            <div>
+                <b>Bible Study</b>
+                <span>7:00 PM · Luton in person</span>
+            </div>
+        </div>
+
+        <div class="time">
+            <span class="d">Thurs</span>
+            <div>
+                <b>Bible Study</b>
+                <span>7:00 PM · HQ and other campuses online</span>
+            </div>
+        </div>
+
+        <div class="time friday-time">
+            <span class="d">Fri</span>
+            <div>
+                <b>Cell</b>
+                <span>6:30–7:30 PM · Across various campuses and postcodes</span>
+            </div>
         </div>
     </div>
-
-    <div class="time">
-        <span class="d">Tue</span>
-        <div>
-            <b>Bible Study</b>
-            <span>7:00 PM · Luton in person</span>
-        </div>
-    </div>
-
-    <div class="time">
-        <span class="d">Thurs</span>
-        <div>
-            <b>Bible Study</b>
-            <span>7:00 PM · HQ and other campuses online</span>
-        </div>
-    </div>
-
-    <div class="time friday-time">
-    <span class="d">Fri</span>
-    <div>
-        <b>Cell</b>
-        <span>6:30–7:30 PM · Across various campuses and postcodes</span>
-    </div>
-</div>
-</div>
-
-
 </section>
 
 <section class="sec">
@@ -173,8 +165,8 @@
 
 {% if devotional %}<section class="sec verse">
     <div class="wrap">
-        <blockquote>{{ devotional.scripture_text|default:devotional.title }}</blockquote><cite>{{
-            devotional.scripture_ref }} · Today’s devotional</cite><a class="btn btn-p"
+        <blockquote>{{ devotional.scripture_text|default:devotional.title }}</blockquote>
+        <cite>{{ devotional.scripture_ref }} · Today’s devotional</cite><a class="btn btn-p"
             href="{% url 'core:devotionals' %}">Read today’s devotional <svg class="i" viewBox="0 0 24 24"
                 aria-hidden="true">
                 <path d="M5 12h14M13 6l6 6-6 6" />
@@ -193,16 +185,29 @@
                     <path d="M5 12h14M13 6l6 6-6 6" />
                 </svg></a>
         </div>
-        <div class="tiles">{% for m in ministries %}<div class="tile ministry-card">{% include
-                "website/_ministry-icon.html" %}<h3>{{ m.name }}</h3>
-                <p class="ministry-summary">{{ m.description|default:"Get involved and serve with us."|truncatewords:16
-                    }}</p><a class="btn btn-o btn-s ministry-read-more"
-                    href="{% url 'core:ministry_detail' m.pk %}">Read more <span aria-hidden="true">→</span></a>
-            </div>{% empty %}<div class="tile">
-                <h3>Explore our ministries</h3>
-                <p>There is a place for you to belong and serve. Visit the ministries page to learn more.</p><a
-                    class="btn btn-o btn-s ministry-read-more" href="{% url 'core:ministries' %}">View ministries</a>
-            </div>{% endfor %}</div>
+        <div class="tiles">
+            {% for m in ministries %}
+                <div class="tile ministry-card">
+                    {% include "website/_ministry-icon.html" %}
+                    <h3>{{ m.name }}</h3>
+                    <p class="ministry-summary">
+                        {{ m.description|default:"Get involved and serve with us."|truncatewords:16 }}
+                    </p>
+                    <a class="btn btn-o btn-s ministry-read-more"
+                       href="{% url 'core:ministry_detail' m.pk %}">
+                        Read more <span aria-hidden="true">→</span>
+                    </a>
+                </div>
+            {% empty %}
+                <div class="tile">
+                    <h3>Explore our ministries</h3>
+                    <p>There is a place for you to belong and serve. Visit the ministries page to learn more.</p>
+                    <a class="btn btn-o btn-s ministry-read-more" href="{% url 'core:ministries' %}">
+                        View ministries
+                    </a>
+                </div>
+            {% endfor %}
+        </div>
     </div>
 </section>
 
