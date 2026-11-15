@@ -37,7 +37,7 @@
   var cd = document.getElementById('cd');
   if (cd) {
     var label = document.getElementById('cdDate');
-    var nextSun = function () { var n = new Date(), d = new Date(n); d.setHours(9, 0, 0, 0); d.setDate(n.getDate() + ((7 - n.getDay()) % 7)); if (d <= n) d.setDate(d.getDate() + 7); return d };
+    var nextSun = function () { var n = new Date(), d = new Date(n); d.setHours(10, 0, 0, 0); d.setDate(n.getDate() + ((7 - n.getDay()) % 7)); if (d <= n) d.setDate(d.getDate() + 7); return d };
     var target = nextSun();
     if (label) label.textContent = target.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) + ' · 9:00 AM';
     var tick = function () {
