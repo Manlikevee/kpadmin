@@ -33,20 +33,52 @@
   /* ---------- year ---------- */
   document.querySelectorAll('[data-year]').forEach(function (y) { y.textContent = new Date().getFullYear() });
 
-  /* ---------- countdown to next Sunday 9:00 (visitor's local time) ---------- */
-  var cd = document.getElementById('cd');
-  if (cd) {
-    var label = document.getElementById('cdDate');
-    var nextSun = function () { var n = new Date(), d = new Date(n); d.setHours(10, 0, 0, 0); d.setDate(n.getDate() + ((7 - n.getDay()) % 7)); if (d <= n) d.setDate(d.getDate() + 7); return d };
-    var target = nextSun();
-    if (label) label.textContent = target.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) + ' · 9:00 AM';
-    var tick = function () {
-      var s = Math.max(0, Math.floor((target - new Date()) / 1000)); if (s === 0) target = nextSun();
-      var v = [Math.floor(s / 86400), Math.floor(s % 86400 / 3600), Math.floor(s % 3600 / 60), s % 60];
-      cd.querySelectorAll('strong').forEach(function (el, i) { el.textContent = String(v[i]).padStart(2, '0') });
-    };
-    tick(); setInterval(tick, 1000);
+/* ---------- countdown to next Sunday 10:00 (visitor's local time) ---------- */
+var cd = document.getElementById('cd');
+
+if (cd) {
+  var label = document.getElementById('cdDate');
+
+  var nextSun = function () {
+    var n = new Date(), d = new Date(n);
+    d.setHours(10, 0, 0, 0);
+    d.setDate(n.getDate() + ((7 - n.getDay()) % 7));
+
+    if (d <= n) d.setDate(d.getDate() + 7);
+
+    return d;
+  };
+
+  var target = nextSun();
+
+  if (label) {
+    label.textContent = target.toLocaleDateString('en-GB', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long'
+    }) + ' · 10:00 AM';
   }
+
+  var tick = function () {
+    var s = Math.max(0, Math.floor((target - new Date()) / 1000));
+
+    if (s === 0) target = nextSun();
+
+    var v = [
+      Math.floor(s / 86400),
+      Math.floor(s % 86400 / 3600),
+      Math.floor(s % 3600 / 60),
+      s % 60
+    ];
+
+    cd.querySelectorAll('strong').forEach(function (el, i) {
+      el.textContent = String(v[i]).padStart(2, '0');
+    });
+  };
+
+  tick();
+  setInterval(tick, 1000);
+}
 
   /* ---------- filters + search: .fchip[data-f] and items [data-c] inside [data-list] ---------- */
   document.querySelectorAll('[data-filters]').forEach(function (grp) {
