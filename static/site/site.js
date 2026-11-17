@@ -33,36 +33,36 @@
   /* ---------- year ---------- */
   document.querySelectorAll('[data-year]').forEach(function (y) { y.textContent = new Date().getFullYear() });
 
-/* ---------- countdown to next Sunday 10:00 (visitor's local time) ---------- */
+/* ---------- countdown through confirmed database events ---------- */
 var cd = document.getElementById('cd');
 
 if (cd) {
   var label = document.getElementById('cdDate');
-
-  var nextSun = function () {
-    var n = new Date(), d = new Date(n);
-    d.setHours(10, 0, 0, 0);
-    d.setDate(n.getDate() + ((7 - n.getDay()) % 7));
-
-    if (d <= n) d.setDate(d.getDate() + 7);
-
-    return d;
+  var data = document.getElementById('countdown-events');
+  var events = data ? JSON.parse(data.textContent).map(function (event) {
+    return { title: event.title, start: new Date(event.start_at) };
+  }).filter(function (event) { return !isNaN(event.start.getTime()); }).sort(function (a, b) { return a.start - b.start; }) : [];
+  var target = null;
+  var formatEventTime = function (date) {
+    var weekday = date.toLocaleDateString('en-GB', { weekday: 'short' });
+    var month = date.toLocaleDateString('en-GB', { month: 'short' });
+    var hour = date.getHours() % 12 || 12;
+    var minute = String(date.getMinutes()).padStart(2, '0');
+    var meridiem = date.getHours() >= 12 ? 'pm' : 'am';
+    return weekday + ' ' + date.getDate() + ' ' + month + '. ' + hour + ':' + minute + meridiem;
   };
-
-  var target = nextSun();
-
-  if (label) {
-    label.textContent = target.toLocaleDateString('en-GB', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long'
-    }) + ' · 10:00 AM';
-  }
+  var chooseNext = function () {
+    target = events.find(function (event) { return event.start > new Date(); }) || null;
+    if (target && label) label.textContent = target.title + ' · ' + formatEventTime(target.start);
+    if (!target) { cd.hidden = true; if (label) label.textContent = 'No upcoming events scheduled'; }
+  };
+  chooseNext();
+  if (!target || isNaN(target.start.getTime())) { cd.hidden = true; return; }
 
   var tick = function () {
-    var s = Math.max(0, Math.floor((target - new Date()) / 1000));
-
-    if (s === 0) target = nextSun();
+    if (!target || target.start <= new Date()) chooseNext();
+    if (!target) return;
+    var s = Math.max(0, Math.floor((target.start - new Date()) / 1000));
 
     var v = [
       Math.floor(s / 86400),

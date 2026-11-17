@@ -1,5 +1,8 @@
 """Public website views (standard Django views + templates)."""
+from datetime import timedelta
+
 from django.contrib import messages
+from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -36,9 +39,45 @@ class HomeView(Page):
     def get_context_data(self, **kw):
         ctx = super().get_context_data(**kw)
         sermons = overlay_notes(get_service().get_sermons(page_size=4)["items"])
+        now = timezone.now()
+        today = timezone.localdate()
+        upcoming_events = []
+        countdown_events = []
+        scheduled = public_events().filter(
+            Q(start_at__date__gte=today) | ~Q(repeat=Event.Repeat.NONE)
+        )
+        for event in scheduled:
+            if event.repeat == Event.Repeat.NONE and timezone.localtime(event.start_at).date() == today:
+                # Keep today's scheduled event visible for the full calendar day.
+                occurrence = event.start_at
+            else:
+                occurrence = event.next_service_occurrence(after=now)
+            if not occurrence:
+                continue
+            event.start_at = occurrence
+            event.is_weekly = event.repeat == Event.Repeat.WEEKLY
+            upcoming_events.append(event)
+            next_occurrence = event.next_service_occurrence(after=now)
+            occurrences_to_show = (52 if event.repeat == Event.Repeat.WEEKLY else
+                                   24 if event.repeat == Event.Repeat.MONTHLY else 1)
+            for _ in range(occurrences_to_show):
+                if not next_occurrence:
+                    break
+                countdown_events.append({
+                    "title": event.title,
+                    "start_at": next_occurrence.isoformat(),
+                })
+                if event.repeat == Event.Repeat.NONE:
+                    break
+                next_occurrence = event.next_service_occurrence(after=next_occurrence + timedelta(seconds=1))
+        countdown_events.sort(key=lambda item: item["start_at"])
+
         ctx.update(
             sermons=sermons,
-            events=public_events().filter(start_at__gte=timezone.now())[:4],
+            events=sorted(upcoming_events, key=lambda event: event.start_at)[:4],
+            weekly_events=public_events().filter(repeat=Event.Repeat.WEEKLY).order_by("start_at"),
+            countdown_events=countdown_events,
+            next_event=countdown_events[0] if countdown_events else None,
             devotional=todays_devotional(),
             praise=PraiseReport.objects.filter(status="published")[:3],
             branches=Branch.objects.filter(is_active=True)[:3],

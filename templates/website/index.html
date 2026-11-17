@@ -16,13 +16,14 @@
                     </svg></a><a class="btn btn-g" href="{% url 'sermons:list' %}">Watch the latest sermon</a></div>
         </div>
         <div class="medal"><img src="{% static 'site/logo.png' %}" alt="KP Global flame logo" width="420" height="420">
-            <div class="next"><small>Next Sunday service</small><b id="cdDate">Sunday · 10:00 AM</b>
+            <div class="next"><small>Next event</small>{% if next_event %}<b id="cdDate">{{ next_event.title }}</b>{{ countdown_events|json_script:"countdown-events" }}
                 <div class="cd" id="cd" aria-label="Countdown">
                     <div><strong>00</strong><span>days</span></div>
                     <div><strong>00</strong><span>hours</span></div>
                     <div><strong>00</strong><span>mins</span></div>
                     <div><strong>00</strong><span>secs</span></div>
                 </div>
+                {% else %}<b>No upcoming events scheduled</b>{% endif %}
             </div>
         </div>
     </div>
@@ -153,8 +154,8 @@
         <div>{% for e in events %}<a class="ev" href="{% url 'core:event' e.pk %}">
                 <div class="dt">{{ e.start_at|date:"d" }}<small>{{ e.start_at|date:"M" }}</small></div>
                 <div>
-                    <h3>{{ e.title }}</h3>
-                    <div class="meta">{{ e.start_at|time:"g:i A" }}{% if e.location %} · {{ e.location }}{% endif %}
+                    <h3>{{ e.title }}{% if e.is_weekly %} <span class="tagx">Weekly</span>{% endif %}</h3>
+                    <div class="meta">{{ e.start_at|date:"D, j M" }} · {{ e.start_at|time:"g:i A" }}{% if e.location %} · {{ e.location }}{% endif %}{% if e.branch %} · {{ e.branch.name }}{% endif %}
                     </div>
                 </div><span class="go"><svg class="i" viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M5 12h14M13 6l6 6-6 6" />
